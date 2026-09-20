@@ -1,14 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import {
-  CanvasElement,
-  Notebook,
+  type CanvasElement,
+  type Notebook,
   SCHEMA_VERSION,
-  Section,
-  Viewport,
-} from '../types';
-import { deletePageImage } from './imageStore';
-import { calculateTargetZoom } from '../utils/canvasMath';
+  type Section,
+  type Viewport,
+} from '../types.ts';
+import { deletePageImage } from './imageStore.ts';
+import { calculateTargetZoom } from '../utils/canvasMath.ts';
+import { saveNotebookToDisk } from '../utils/bundle.ts';
 
 const MAX_UNDO_STEPS = 50;
 
@@ -87,6 +88,12 @@ export const useNotesStore = create<NotesState>()(
           activeNotebookId: newNotebook.id,
           activeSectionId: initialSection.id,
         }));
+
+        if (newNotebook.folderPath) {
+          saveNotebookToDisk(newNotebook).catch((err) =>
+            console.error('[STORAGE] Failed to save new notebook to disk:', err)
+          );
+        }
 
         return newNotebook;
       },
@@ -614,3 +621,33 @@ export const useActiveSection = () =>
     const activeNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
     return activeNb?.sections.find((sec) => sec.id === state.activeSectionId);
   });
+
+// Debounced auto-save to disk for any notebook that has a folderPath configured
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+useNotesStore.subscribe((state, prevState) => {
+  if (state.notebooks !== prevState.notebooks && state.activeNotebookId) {
+    const activeNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+    if (activeNb?.folderPath) {
+      if (autoSaveTimer) clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(() => {
+        saveNotebookToDisk(activeNb).catch((err) =>
+          console.error('[STORAGE] Auto-save to disk error:', err)
+        );
+      }, 1000);
+    }
+  }
+});
+
+// Sync all notebooks that have a designated folderPath to disk
+export function syncAllFolderNotebooks(): void {
+  const { notebooks } = useNotesStore.getState();
+  for (const nb of notebooks) {
+    if (nb.folderPath) {
+      saveNotebookToDisk(nb).catch((err) =>
+        console.error(`[STORAGE] Failed to sync notebook "${nb.name}":`, err)
+      );
+    }
+  }
+}
+

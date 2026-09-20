@@ -18,6 +18,7 @@
     margin: 0;
     overflow: hidden;              /* the canvas owns all scrolling */
     overscroll-behavior: none;     /* kills macOS rubber-band / swipe-back */
+    touch-action: none;            /* disable browser/webview gesture scaling */
     font-family: var(--font-ui);
     background: var(--color-canvas);
     -webkit-font-smoothing: antialiased;

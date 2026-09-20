@@ -1,7 +1,8 @@
 import { useState, type FC } from 'react';
-import { Plus, FolderOpen, BookOpen, Clock, Sparkles } from 'lucide-react';
+import { Plus, FolderOpen, BookOpen, Clock, Sparkles, Trash2 } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { CreateNotebookDialog } from './CreateNotebookDialog';
+import { ConfirmDialog } from '../Common/ConfirmDialog';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { importNotebookBundle } from '../../utils/bundle';
 
@@ -25,8 +26,10 @@ function formatRelativeDate(timestamp: number): string {
 
 export const StartScreen: FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const notebooks = useNotesStore((state) => state.notebooks);
   const createNotebook = useNotesStore((state) => state.createNotebook);
+  const deleteNotebook = useNotesStore((state) => state.deleteNotebook);
   const setActiveNotebook = useNotesStore((state) => state.setActiveNotebook);
 
   const handleOpenExisting = async () => {
@@ -166,9 +169,22 @@ export const StartScreen: FC = () => {
                   <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
                     <BookOpen size={20} />
                   </div>
-                  <span className="px-2.5 py-1 rounded-full bg-gray-100/90 text-[11px] font-medium text-gray-600">
-                    {nb.sections.length} {nb.sections.length === 1 ? 'section' : 'sections'}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-2.5 py-1 rounded-full bg-gray-100/90 text-[11px] font-medium text-gray-600">
+                      {nb.sections.length} {nb.sections.length === 1 ? 'section' : 'sections'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDelete({ id: nb.id, name: nb.name });
+                      }}
+                      title="Delete Notebook"
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition cursor-pointer"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
 
                 <div>
@@ -191,6 +207,22 @@ export const StartScreen: FC = () => {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onCreate={(name, folderPath) => createNotebook(name, folderPath)}
+      />
+
+      {/* Confirmation Dialog for Deleting Notebook from Start Screen */}
+      <ConfirmDialog
+        isOpen={confirmDelete !== null}
+        title="Delete Notebook"
+        message={`Are you sure you want to delete "${confirmDelete?.name}"? All sections, canvas notes, and imagery will be permanently removed.`}
+        confirmLabel="Delete Notebook"
+        isDestructive={true}
+        onConfirm={async () => {
+          if (confirmDelete) {
+            await deleteNotebook(confirmDelete.id);
+            setConfirmDelete(null);
+          }
+        }}
+        onCancel={() => setConfirmDelete(null)}
       />
     </div>
   );

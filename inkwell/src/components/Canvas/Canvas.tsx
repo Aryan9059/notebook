@@ -10,7 +10,6 @@ import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
 import {
   calculateCursorZoom,
-  calculateTargetZoom,
   clamp,
   MIN_ZOOM,
   MAX_ZOOM,
@@ -60,10 +59,22 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const panStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
 
+  // Track mouse coordinates for anchor zoom
+  const mousePosRef = useRef({
+    clientX: typeof window !== 'undefined' ? window.innerWidth / 2 : 0,
+    clientY: typeof window !== 'undefined' ? window.innerHeight / 2 : 0,
+  });
+  const isGesturingRef = useRef(false);
+
   // Non-passive wheel & native WebKit gesture handler for trackpad pinch zoom & pan
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+
+    const onMouseMove = (e: MouseEvent) => {
+      mousePosRef.current = { clientX: e.clientX, clientY: e.clientY };
+    };
+    window.addEventListener('mousemove', onMouseMove, { passive: true });
 
     const onWheel = (e: WheelEvent) => {
       const target = e.target as HTMLElement | null;
@@ -71,11 +82,15 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
       if (target?.closest('#sidebar-container')) return;
 
       e.preventDefault();
+      // If WebKit GestureEvent is actively controlling pinch zoom, avoid clashing
+      if (isGesturingRef.current) return;
+
       const rect = el.getBoundingClientRect();
       const current = viewportRef.current;
+      mousePosRef.current = { clientX: e.clientX, clientY: e.clientY };
 
       if (e.ctrlKey || e.metaKey) {
-        // Trackpad pinch or Ctrl/Cmd + wheel zoom anchored to cursor
+        // Trackpad pinch (Blink/Gecko) or Ctrl/Cmd + wheel zoom anchored to cursor
         const px = e.clientX - rect.left;
         const py = e.clientY - rect.top;
         const next = calculateCursorZoom(px, py, e.deltaY, current);
@@ -89,46 +104,88 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
       }
     };
 
-    // Native WebKit gesture tracking (Safari & macOS WKWebView trackpad pinch)
+    // Native WebKit gesture tracking (macOS WKWebView & Safari trackpad pinch)
     let gestureStartZoom = 1;
     let gestureStartViewport: Viewport = { x: 0, y: 0, zoom: 1 };
+    let gestureAnchorX = 0;
+    let gestureAnchorY = 0;
 
     const onGestureStart = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('#sidebar-container')) return;
+
+      const wasPrevented = e.defaultPrevented;
       e.preventDefault();
+      if (wasPrevented) return;
+
+      isGesturingRef.current = true;
+      const rect = el.getBoundingClientRect();
       gestureStartViewport = viewportRef.current;
       gestureStartZoom = viewportRef.current.zoom;
+
+      const mouseX = mousePosRef.current.clientX;
+      const mouseY = mousePosRef.current.clientY;
+      if (
+        mouseX >= rect.left &&
+        mouseX <= rect.right &&
+        mouseY >= rect.top &&
+        mouseY <= rect.bottom
+      ) {
+        gestureAnchorX = mouseX - rect.left;
+        gestureAnchorY = mouseY - rect.top;
+      } else {
+        gestureAnchorX = rect.width / 2;
+        gestureAnchorY = rect.height / 2;
+      }
     };
 
     const onGestureChange = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('#sidebar-container')) return;
+
+      const wasPrevented = e.defaultPrevented;
       e.preventDefault();
-      const ge = e as unknown as { scale: number; clientX?: number; clientY?: number };
-      const rect = el.getBoundingClientRect();
-      const clientX = typeof ge.clientX === 'number' ? ge.clientX : rect.left + rect.width / 2;
-      const clientY = typeof ge.clientY === 'number' ? ge.clientY : rect.top + rect.height / 2;
-      const px = clientX - rect.left;
-      const py = clientY - rect.top;
+      if (wasPrevented) return;
+
+      const ge = e as unknown as { scale: number };
+      if (typeof ge.scale !== 'number' || isNaN(ge.scale) || ge.scale <= 0) return;
+
       const targetZoom = clamp(gestureStartZoom * ge.scale, MIN_ZOOM, MAX_ZOOM);
-      const next = calculateTargetZoom(px, py, targetZoom, gestureStartViewport);
-      setViewport(next);
+      const k = targetZoom / gestureStartZoom;
+      setViewport({
+        x: gestureAnchorX - k * (gestureAnchorX - gestureStartViewport.x),
+        y: gestureAnchorY - k * (gestureAnchorY - gestureStartViewport.y),
+        zoom: targetZoom,
+      });
     };
 
     const onGestureEnd = (e: Event) => {
       e.preventDefault();
+      setTimeout(() => {
+        isGesturingRef.current = false;
+      }, 60);
     };
 
+    // Attach wheel listener to el
     el.addEventListener('wheel', onWheel, { passive: false });
-    window.addEventListener('wheel', onWheel, { passive: false });
 
-    el.addEventListener('gesturestart', onGestureStart, { passive: false });
-    el.addEventListener('gesturechange', onGestureChange, { passive: false });
-    el.addEventListener('gestureend', onGestureEnd, { passive: false });
+    // Attach WebKit gesture listeners to document and window
+    document.addEventListener('gesturestart', onGestureStart, { passive: false });
+    document.addEventListener('gesturechange', onGestureChange, { passive: false });
+    document.addEventListener('gestureend', onGestureEnd, { passive: false });
+    window.addEventListener('gesturestart', onGestureStart, { passive: false });
+    window.addEventListener('gesturechange', onGestureChange, { passive: false });
+    window.addEventListener('gestureend', onGestureEnd, { passive: false });
 
     return () => {
+      window.removeEventListener('mousemove', onMouseMove);
       el.removeEventListener('wheel', onWheel);
-      window.removeEventListener('wheel', onWheel);
-      el.removeEventListener('gesturestart', onGestureStart);
-      el.removeEventListener('gesturechange', onGestureChange);
-      el.removeEventListener('gestureend', onGestureEnd);
+      document.removeEventListener('gesturestart', onGestureStart);
+      document.removeEventListener('gesturechange', onGestureChange);
+      document.removeEventListener('gestureend', onGestureEnd);
+      window.removeEventListener('gesturestart', onGestureStart);
+      window.removeEventListener('gesturechange', onGestureChange);
+      window.removeEventListener('gestureend', onGestureEnd);
     };
   }, [setViewport]);
 

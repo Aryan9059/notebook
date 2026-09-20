@@ -15,6 +15,9 @@ interface PdfPageCardProps {
 }
 
 export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const selectedId = useUiStore((state) => state.selectedId);
   const setSelectedId = useUiStore((state) => state.setSelectedId);
@@ -29,11 +32,37 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
 
+  // Resize refs
+  const isResizingRef = useRef(false);
+  const resizeStartRef = useRef<{
+    clientX: number;
+    clientY: number;
+    startWidth: number;
+    startHeight: number;
+    startX: number;
+    startY: number;
+    handle: 'se' | 'sw';
+  } | null>(null);
+  const currentDimensionsRef = useRef({ width: element.width, height: element.height });
+
   useEffect(() => {
     if (!isDragging) {
       setLocalPos({ x: element.x, y: element.y });
     }
   }, [element.x, element.y, isDragging]);
+
+  useEffect(() => {
+    if (!isResizingRef.current) {
+      currentDimensionsRef.current = { width: element.width, height: element.height };
+      if (cardRef.current) {
+        cardRef.current.style.width = `${element.width}px`;
+        cardRef.current.style.height = `${element.height + 38}px`;
+      }
+      if (imageContainerRef.current) {
+        imageContainerRef.current.style.height = `${element.height}px`;
+      }
+    }
+  }, [element.width, element.height]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -99,6 +128,89 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
     }
   };
 
+  // Resize pointer handlers
+  const handleResizePointerDown = (e: React.PointerEvent, handle: 'se' | 'sw') => {
+    if (element.isLocked || activeTool === 'hand') return;
+    e.stopPropagation();
+    e.preventDefault();
+    if (e.button !== 0) return;
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+    isResizingRef.current = true;
+    resizeStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      startWidth: currentDimensionsRef.current.width,
+      startHeight: currentDimensionsRef.current.height,
+      startX: localPos.x,
+      startY: localPos.y,
+      handle,
+    };
+  };
+
+  const handleResizePointerMove = (e: React.PointerEvent) => {
+    if (!isResizingRef.current || !resizeStartRef.current) return;
+    e.stopPropagation();
+
+    const state = useNotesStore.getState();
+    const activeNb = state.notebooks.find((n) => n.id === state.activeNotebookId);
+    const activeSec = activeNb?.sections.find((s) => s.id === state.activeSectionId);
+    const zoom = activeSec?.viewport.zoom ?? 1;
+
+    const start = resizeStartRef.current;
+    const dx = (e.clientX - start.clientX) / zoom;
+    const aspectRatio = Math.max(0.1, start.startWidth / start.startHeight);
+
+    let nextWidth = start.startWidth;
+    let nextHeight = start.startHeight;
+
+    if (start.handle === 'se') {
+      nextWidth = Math.max(160, Math.round(start.startWidth + dx));
+      nextHeight = Math.max(120, Math.round(nextWidth / aspectRatio));
+    } else if (start.handle === 'sw') {
+      nextWidth = Math.max(160, Math.round(start.startWidth - dx));
+      nextHeight = Math.max(120, Math.round(nextWidth / aspectRatio));
+      const nextX = start.startX - (nextWidth - start.startWidth);
+      setLocalPos((prev) => ({ ...prev, x: nextX }));
+    }
+
+    currentDimensionsRef.current = { width: nextWidth, height: nextHeight };
+
+    if (cardRef.current) {
+      cardRef.current.style.width = `${nextWidth}px`;
+      cardRef.current.style.height = `${nextHeight + 38}px`;
+    }
+    if (imageContainerRef.current) {
+      imageContainerRef.current.style.height = `${nextHeight}px`;
+    }
+  };
+
+  const handleResizePointerUp = (e: React.PointerEvent) => {
+    if (isResizingRef.current) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // Ignored
+      }
+      const start = resizeStartRef.current;
+      isResizingRef.current = false;
+      resizeStartRef.current = null;
+
+      if (start && start.handle === 'sw') {
+        moveElement(element.id, localPos.x, localPos.y, false);
+      }
+
+      updateElement(
+        element.id,
+        {
+          width: currentDimensionsRef.current.width,
+          height: currentDimensionsRef.current.height,
+        },
+        true
+      );
+    }
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     if (!element.isLocked && activeTool !== 'hand') {
       e.stopPropagation();
@@ -112,9 +224,10 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
 
   return (
     <div
+      ref={cardRef}
       id={`pdf-page-${element.id}`}
       onClick={handleCardClick}
-      className={`absolute rounded-2xl bg-white select-none overflow-hidden transition-all duration-150 ${ringStyle}`}
+      className={`absolute rounded-2xl bg-white select-none transition-shadow duration-150 ${ringStyle}`}
       style={{
         transform: `translate(${localPos.x}px, ${localPos.y}px)`,
         width: element.width,
@@ -128,7 +241,7 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className={`h-[38px] flex items-center justify-between px-3.5 bg-gray-100/90 backdrop-blur-md border-b border-black/[0.06] select-none ${
+        className={`h-[38px] rounded-t-2xl flex items-center justify-between px-3.5 bg-gray-100/90 backdrop-blur-md border-b border-black/[0.06] select-none ${
           element.isLocked
             ? 'cursor-default opacity-85'
             : 'cursor-grab active:cursor-grabbing hover:bg-gray-200/70'
@@ -159,7 +272,8 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
 
       {/* Page image layer: §9.3 - when isLocked, pointer-events: none */}
       <div
-        className={`w-full relative bg-white ${
+        ref={imageContainerRef}
+        className={`w-full relative bg-white rounded-b-2xl overflow-hidden ${
           element.isLocked ? 'pointer-events-none' : 'pointer-events-auto cursor-pointer'
         }`}
         style={{ height: element.height }}
@@ -184,6 +298,39 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
           </div>
         )}
       </div>
+
+      {/* Resize Handles (Bottom-right and Bottom-left corner handles) */}
+      {isSelected && !element.isLocked && activeTool !== 'hand' && (
+        <>
+          {/* Bottom-right corner (primary) */}
+          <div
+            data-resize-handle="se"
+            onPointerDown={(e) => handleResizePointerDown(e, 'se')}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            onPointerCancel={handleResizePointerUp}
+            title="Drag to resize page"
+            className="absolute -bottom-2 -right-2 w-5 h-5 cursor-nwse-resize flex items-center justify-center group/se z-30"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div className="w-3.5 h-3.5 rounded-full bg-white border-2 border-black group-hover/se:scale-125 transition-transform shadow-md" />
+          </div>
+
+          {/* Bottom-left corner */}
+          <div
+            data-resize-handle="sw"
+            onPointerDown={(e) => handleResizePointerDown(e, 'sw')}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            onPointerCancel={handleResizePointerUp}
+            title="Drag to resize page"
+            className="absolute -bottom-2 -left-2 w-5 h-5 cursor-nesw-resize flex items-center justify-center group/sw z-30"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div className="w-3.5 h-3.5 rounded-full bg-white border-2 border-black group-hover/sw:scale-125 transition-transform shadow-md" />
+          </div>
+        </>
+      )}
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, type ChangeEvent } from 'react';
-import { useNotesStore } from './store/useNotesStore';
+import { useNotesStore, syncAllFolderNotebooks } from './store/useNotesStore';
 import { useUiStore } from './store/useUiStore';
 import { collectGarbage, putPageImage } from './store/imageStore';
 import { StartScreen } from './components/Screens/StartScreen';
@@ -43,7 +43,7 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // §7 / §9.5: Run collectGarbage once on app start
+  // §7 / §9.5: Run collectGarbage once on app start and sync any folder-based notebooks to disk
   useEffect(() => {
     const liveKeys = new Set<string>();
     for (const nb of notebooks) {
@@ -56,6 +56,7 @@ export default function App() {
       }
     }
     collectGarbage(liveKeys).catch(console.error);
+    syncAllFolderNotebooks();
   }, [notebooks]);
 
   // Double click empty canvas creates new TextElement at canvas position (§8.1, §9.1)

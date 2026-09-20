@@ -11,6 +11,7 @@ import {
   MoreVertical,
   Type,
   Download,
+  FileText,
   RotateCcw,
   Trash2,
   Paperclip,
@@ -44,6 +45,10 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
   const selectedId = useUiStore((state) => state.selectedId);
   const activeTool = useUiStore((state) => state.activeTool);
   const setActiveTool = useUiStore((state) => state.setActiveTool);
+
+  const activeNotebook = useNotesStore((state) =>
+    state.notebooks.find((n) => n.id === state.activeNotebookId)
+  );
 
   const activeSection = useNotesStore((state) => {
     const nb = state.notebooks.find((n) => n.id === state.activeNotebookId);
@@ -223,6 +228,22 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
               <div className="flex items-center gap-2">
                 <Download size={14} className="text-gray-500" />
                 <span>Export as PDF</span>
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setIsMenuOpen(false);
+                if (activeNotebook) {
+                  const { exportNotebookBundle } = await import('../../utils/bundle');
+                  await exportNotebookBundle(activeNotebook);
+                }
+              }}
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 hover:bg-black/[0.04] transition flex items-center justify-between cursor-pointer font-medium"
+            >
+              <div className="flex items-center gap-2">
+                <FileText size={14} className="text-gray-500" />
+                <span>Export (.inkwell.json)</span>
               </div>
             </button>
             <button

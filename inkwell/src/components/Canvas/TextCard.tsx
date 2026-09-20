@@ -36,7 +36,12 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
   const posRef = useRef({ x: element.x, y: element.y });
   const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
 
-  // Sync external position updates
+  // Resize handling
+  const isResizingRef = useRef(false);
+  const resizeStartRef = useRef<{ clientX: number; clientY: number; startWidth: number } | null>(null);
+  const currentWidthRef = useRef(element.width || 340);
+
+  // Sync external position and width updates
   useEffect(() => {
     if (!isDraggingRef.current) {
       posRef.current = { x: element.x, y: element.y };
@@ -45,6 +50,16 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
       }
     }
   }, [element.x, element.y]);
+
+  useEffect(() => {
+    if (!isResizingRef.current) {
+      const w = element.width || 340;
+      currentWidthRef.current = w;
+      if (cardRef.current) {
+        cardRef.current.style.width = `${w}px`;
+      }
+    }
+  }, [element.width]);
 
   const editor = useEditor({
     extensions: [StarterKit, TextStyleKit],
@@ -128,6 +143,53 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
     }
   };
 
+  // Resize pointer event handlers
+  const handleResizePointerDown = (e: React.PointerEvent) => {
+    if (activeTool === 'hand') return;
+    e.stopPropagation();
+    e.preventDefault();
+    if (e.button !== 0) return;
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+    isResizingRef.current = true;
+    resizeStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      startWidth: currentWidthRef.current,
+    };
+  };
+
+  const handleResizePointerMove = (e: React.PointerEvent) => {
+    if (!isResizingRef.current || !resizeStartRef.current) return;
+    e.stopPropagation();
+
+    const state = useNotesStore.getState();
+    const activeNb = state.notebooks.find((n) => n.id === state.activeNotebookId);
+    const activeSec = activeNb?.sections.find((s) => s.id === state.activeSectionId);
+    const zoom = activeSec?.viewport.zoom ?? 1;
+
+    const dxCanvas = (e.clientX - resizeStartRef.current.clientX) / zoom;
+    const nextWidth = Math.max(160, Math.round(resizeStartRef.current.startWidth + dxCanvas));
+
+    currentWidthRef.current = nextWidth;
+    if (cardRef.current) {
+      cardRef.current.style.width = `${nextWidth}px`;
+    }
+  };
+
+  const handleResizePointerUp = (e: React.PointerEvent) => {
+    if (isResizingRef.current) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // Ignored
+      }
+      isResizingRef.current = false;
+      resizeStartRef.current = null;
+      updateElement(element.id, { width: currentWidthRef.current }, true);
+    }
+  };
+
   const handleCardPointerDown = (e: React.PointerEvent) => {
     if (activeTool === 'hand') return;
     if (isEditing) return;
@@ -204,6 +266,37 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
       >
         <EditorContent editor={editor} />
       </div>
+
+      {/* Resize Handles (Right Edge + Bottom-Right Corner) */}
+      {(isSelected || isEditing) && (
+        <>
+          {/* Right edge resize bar */}
+          <div
+            onPointerDown={handleResizePointerDown}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            onPointerCancel={handleResizePointerUp}
+            title="Drag to resize width"
+            className="absolute top-2 bottom-2 -right-1.5 w-3 cursor-ew-resize flex items-center justify-center group/resize z-20"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div className="w-1 h-6 rounded-full bg-gray-400/40 group-hover/resize:bg-black group-hover/resize:scale-y-125 transition-all" />
+          </div>
+
+          {/* Bottom-right corner handle */}
+          <div
+            onPointerDown={handleResizePointerDown}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            onPointerCancel={handleResizePointerUp}
+            title="Drag to resize width"
+            className="absolute -bottom-1.5 -right-1.5 w-4 h-4 cursor-nwse-resize flex items-center justify-center group/corner z-20"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div className="w-2.5 h-2.5 rounded-full bg-white border-[1.5px] border-gray-600 group-hover/corner:border-black group-hover/corner:scale-125 transition-all shadow-xs" />
+          </div>
+        </>
+      )}
     </div>
   );
 };

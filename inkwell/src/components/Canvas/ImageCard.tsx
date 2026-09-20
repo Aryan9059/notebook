@@ -16,6 +16,7 @@ interface ImageCardProps {
 }
 
 export const ImageCard: FC<ImageCardProps> = ({ element }) => {
+  const cardRef = useRef<HTMLDivElement>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   // Store actions
@@ -33,6 +34,29 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
   // Drag interaction refs
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef<{ clientX: number; clientY: number; elX: number; elY: number } | null>(null);
+
+  // Resize interaction refs
+  const isResizingRef = useRef(false);
+  const resizeStartRef = useRef<{
+    clientX: number;
+    clientY: number;
+    startWidth: number;
+    startHeight: number;
+    startX: number;
+    startY: number;
+    handle: 'se' | 'sw' | 'ne' | 'nw';
+  } | null>(null);
+  const currentDimensionsRef = useRef({ width: element.width, height: element.height });
+
+  useEffect(() => {
+    if (!isResizingRef.current) {
+      currentDimensionsRef.current = { width: element.width, height: element.height };
+      if (cardRef.current) {
+        cardRef.current.style.width = `${element.width}px`;
+        cardRef.current.style.height = `${element.height}px`;
+      }
+    }
+  }, [element.width, element.height]);
 
   // Fetch memoized object URL from IDB
   useEffect(() => {
@@ -54,7 +78,7 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
       if (activeTool === 'hand') return; // Hand tool handles canvas panning instead
 
       const target = e.target as HTMLElement;
-      if (target.closest('button')) return;
+      if (target.closest('button') || target.closest('[data-resize-handle]')) return;
 
       e.stopPropagation();
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -104,6 +128,93 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
     []
   );
 
+  // Resize pointer handlers
+  const handleResizePointerDown = (
+    e: React.PointerEvent,
+    handle: 'se' | 'sw' | 'ne' | 'nw'
+  ) => {
+    if (element.isLocked || activeTool === 'hand') return;
+    e.stopPropagation();
+    e.preventDefault();
+    if (e.button !== 0) return;
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+    isResizingRef.current = true;
+    resizeStartRef.current = {
+      clientX: e.clientX,
+      clientY: e.clientY,
+      startWidth: currentDimensionsRef.current.width,
+      startHeight: currentDimensionsRef.current.height,
+      startX: element.x,
+      startY: element.y,
+      handle,
+    };
+  };
+
+  const handleResizePointerMove = (e: React.PointerEvent) => {
+    if (!isResizingRef.current || !resizeStartRef.current) return;
+    e.stopPropagation();
+
+    const state = useNotesStore.getState();
+    const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+    const currentSec = currentNb?.sections.find((s) => s.id === state.activeSectionId);
+    const zoom = currentSec?.viewport.zoom ?? 1;
+
+    const start = resizeStartRef.current;
+    const dx = (e.clientX - start.clientX) / zoom;
+    const aspectRatio = Math.max(0.1, start.startWidth / start.startHeight);
+
+    let nextWidth = start.startWidth;
+    let nextHeight = start.startHeight;
+
+    if (start.handle === 'se') {
+      nextWidth = Math.max(80, Math.round(start.startWidth + dx));
+      nextHeight = Math.max(60, Math.round(nextWidth / aspectRatio));
+    } else if (start.handle === 'sw') {
+      nextWidth = Math.max(80, Math.round(start.startWidth - dx));
+      nextHeight = Math.max(60, Math.round(nextWidth / aspectRatio));
+      const nextX = start.startX - (nextWidth - start.startWidth);
+      moveElement(element.id, nextX, start.startY, false);
+    } else if (start.handle === 'ne') {
+      nextWidth = Math.max(80, Math.round(start.startWidth + dx));
+      nextHeight = Math.max(60, Math.round(nextWidth / aspectRatio));
+      const nextY = start.startY - (nextHeight - start.startHeight);
+      moveElement(element.id, start.startX, nextY, false);
+    } else if (start.handle === 'nw') {
+      nextWidth = Math.max(80, Math.round(start.startWidth - dx));
+      nextHeight = Math.max(60, Math.round(nextWidth / aspectRatio));
+      const nextX = start.startX - (nextWidth - start.startWidth);
+      const nextY = start.startY - (nextHeight - start.startHeight);
+      moveElement(element.id, nextX, nextY, false);
+    }
+
+    currentDimensionsRef.current = { width: nextWidth, height: nextHeight };
+    if (cardRef.current) {
+      cardRef.current.style.width = `${nextWidth}px`;
+      cardRef.current.style.height = `${nextHeight}px`;
+    }
+  };
+
+  const handleResizePointerUp = (e: React.PointerEvent) => {
+    if (isResizingRef.current) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // Ignored
+      }
+      isResizingRef.current = false;
+      resizeStartRef.current = null;
+      updateElement(
+        element.id,
+        {
+          width: currentDimensionsRef.current.width,
+          height: currentDimensionsRef.current.height,
+        },
+        true
+      );
+    }
+  };
+
   const toggleLock = (e: React.MouseEvent) => {
     e.stopPropagation();
     updateElement(element.id, { isLocked: !element.isLocked }, true);
@@ -119,6 +230,7 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
 
   return (
     <div
+      ref={cardRef}
       id={`image-card-${element.id}`}
       data-element-id={element.id}
       onClick={(e) => {
@@ -205,6 +317,67 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
           </div>
         )}
       </div>
+
+      {/* 4 Corner Resize Handles (when selected and not locked) */}
+      {isSelected && !element.isLocked && activeTool !== 'hand' && (
+        <>
+          {/* Bottom-right corner (primary handle) */}
+          <div
+            data-resize-handle="se"
+            onPointerDown={(e) => handleResizePointerDown(e, 'se')}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            onPointerCancel={handleResizePointerUp}
+            title="Drag to resize"
+            className="absolute -bottom-2 -right-2 w-5 h-5 cursor-nwse-resize flex items-center justify-center group/se z-30"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div className="w-3.5 h-3.5 rounded-full bg-white border-2 border-black group-hover/se:scale-125 transition-transform shadow-md" />
+          </div>
+
+          {/* Bottom-left corner */}
+          <div
+            data-resize-handle="sw"
+            onPointerDown={(e) => handleResizePointerDown(e, 'sw')}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            onPointerCancel={handleResizePointerUp}
+            title="Drag to resize"
+            className="absolute -bottom-2 -left-2 w-5 h-5 cursor-nesw-resize flex items-center justify-center group/sw z-30"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div className="w-3.5 h-3.5 rounded-full bg-white border-2 border-black group-hover/sw:scale-125 transition-transform shadow-md" />
+          </div>
+
+          {/* Top-right corner */}
+          <div
+            data-resize-handle="ne"
+            onPointerDown={(e) => handleResizePointerDown(e, 'ne')}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            onPointerCancel={handleResizePointerUp}
+            title="Drag to resize"
+            className="absolute -top-2 -right-2 w-5 h-5 cursor-nesw-resize flex items-center justify-center group/ne z-30"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div className="w-3.5 h-3.5 rounded-full bg-white border-2 border-black group-hover/ne:scale-125 transition-transform shadow-md" />
+          </div>
+
+          {/* Top-left corner */}
+          <div
+            data-resize-handle="nw"
+            onPointerDown={(e) => handleResizePointerDown(e, 'nw')}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            onPointerCancel={handleResizePointerUp}
+            title="Drag to resize"
+            className="absolute -top-2 -left-2 w-5 h-5 cursor-nwse-resize flex items-center justify-center group/nw z-30"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <div className="w-3.5 h-3.5 rounded-full bg-white border-2 border-black group-hover/nw:scale-125 transition-transform shadow-md" />
+          </div>
+        </>
+      )}
     </div>
   );
 };
