@@ -1,5 +1,6 @@
 import {
   type FC,
+  memo,
   useRef,
   useState,
   useEffect,
@@ -16,7 +17,7 @@ interface ImageCardProps {
   onDoubleClickLocked?: (clientX: number, clientY: number) => void;
 }
 
-export const ImageCard: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) => {
+const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
@@ -411,3 +412,20 @@ export const ImageCard: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) 
     </div>
   );
 };
+
+export const ImageCard = memo(ImageCardInner, (prev, next) => {
+  const pe = prev.element;
+  const ne = next.element;
+  return (
+    pe.id === ne.id &&
+    pe.x === ne.x &&
+    pe.y === ne.y &&
+    pe.width === ne.width &&
+    pe.height === ne.height &&
+    pe.isLocked === ne.isLocked &&
+    pe.zIndex === ne.zIndex &&
+    pe.imageKey === ne.imageKey &&
+    pe.name === ne.name &&
+    prev.onDoubleClickLocked === next.onDoubleClickLocked
+  );
+});

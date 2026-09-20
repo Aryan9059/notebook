@@ -1,4 +1,4 @@
-import { type FC, useRef, useCallback } from 'react';
+import { type FC, memo, useRef, useCallback } from 'react';
 import { ArrowLeftRight, Trash2, RotateCw } from 'lucide-react';
 import { ArrowElement } from '../../types';
 import { useNotesStore } from '../../store/useNotesStore';
@@ -8,7 +8,7 @@ interface ArrowCardProps {
   element: ArrowElement;
 }
 
-export const ArrowCard: FC<ArrowCardProps> = ({ element }) => {
+const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
   const selectedId = useUiStore((state) => state.selectedId);
   const selectedIds = useUiStore((state) => state.selectedIds);
   const setSelectedId = useUiStore((state) => state.setSelectedId);
@@ -380,3 +380,20 @@ export const ArrowCard: FC<ArrowCardProps> = ({ element }) => {
     </div>
   );
 };
+
+export const ArrowCard = memo(ArrowCardInner, (prev, next) => {
+  const pe = prev.element;
+  const ne = next.element;
+  return (
+    pe.id === ne.id &&
+    pe.startX === ne.startX &&
+    pe.startY === ne.startY &&
+    pe.endX === ne.endX &&
+    pe.endY === ne.endY &&
+    pe.controlOffset === ne.controlOffset &&
+    pe.color === ne.color &&
+    pe.strokeWidth === ne.strokeWidth &&
+    pe.arrowHeadPosition === ne.arrowHeadPosition &&
+    pe.zIndex === ne.zIndex
+  );
+});

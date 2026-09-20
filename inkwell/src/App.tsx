@@ -7,13 +7,9 @@ import { CreateNotebookDialog } from './components/Screens/CreateNotebookDialog'
 import { Sidebar } from './components/Layout/Sidebar';
 import { Canvas } from './components/Canvas/Canvas';
 import { FloatingToolbar } from './components/Layout/FloatingToolbar';
-import { TextCard } from './components/Canvas/TextCard';
-import { PdfPageCard } from './components/Canvas/PdfPageCard';
-import { ImageCard } from './components/Canvas/ImageCard';
-import { ArrowCard } from './components/Canvas/ArrowCard';
+import { CanvasElements } from './components/Canvas/CanvasElements';
 import { processPdfFile } from './utils/pdfProcessor';
 import { exportSectionToPdf } from './utils/exportPdf';
-import { screenToCanvas } from './utils/canvasMath';
 import { ImageElement, TextElement } from './types';
 
 export default function App() {
@@ -25,6 +21,7 @@ export default function App() {
   const activeSection = activeNotebook?.sections.find((s) => s.id === activeSectionId);
 
   const addElement = useNotesStore((state) => state.addElement);
+  const addElements = useNotesStore((state) => state.addElements);
   const createNotebook = useNotesStore((state) => state.createNotebook);
   const setActiveNotebook = useNotesStore((state) => state.setActiveNotebook);
 
@@ -47,8 +44,9 @@ export default function App() {
 
   // §7 / §9.5: Run collectGarbage once on app start and sync any folder-based notebooks to disk
   useEffect(() => {
+    const nbs = useNotesStore.getState().notebooks;
     const liveKeys = new Set<string>();
-    for (const nb of notebooks) {
+    for (const nb of nbs) {
       for (const sec of nb.sections) {
         for (const el of sec.elements) {
           if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
@@ -59,7 +57,7 @@ export default function App() {
     }
     collectGarbage(liveKeys).catch(console.error);
     syncAllFolderNotebooks();
-  }, [notebooks]);
+  }, []); // Only run on mount — not on every notebooks change
 
   // Double click empty canvas creates new TextElement at canvas position (§8.1, §9.1)
   const handleDoubleClickCanvas = (canvasX: number, canvasY: number) => {
@@ -123,9 +121,8 @@ export default function App() {
         }
       );
 
-      for (const page of pages) {
-        addElement(page);
-      }
+      // Batch add — single store update + single undo snapshot
+      addElements(pages);
     } catch (err) {
       console.error('Failed to import PDF:', err);
       showToast('Could not import PDF. Please check the file format.');
@@ -408,45 +405,7 @@ export default function App() {
 
         {/* Infinite Canvas */}
         <Canvas onDoubleClickCanvas={handleDoubleClickCanvas}>
-          {activeSection?.elements.map((el) => {
-            if (el.type === 'text') {
-              return <TextCard key={el.id} element={el} />;
-            }
-            if (el.type === 'pdf-page') {
-              return (
-                <PdfPageCard
-                  key={el.id}
-                  element={el}
-                  onDoubleClickLocked={(clientX, clientY) => {
-                    const rect = document.getElementById('infinite-canvas-container')?.getBoundingClientRect();
-                    if (rect && activeSection) {
-                      const coords = screenToCanvas(clientX, clientY, activeSection.viewport, rect);
-                      handleDoubleClickCanvas(coords.x, coords.y);
-                    }
-                  }}
-                />
-              );
-            }
-            if (el.type === 'image') {
-              return (
-                <ImageCard
-                  key={el.id}
-                  element={el}
-                  onDoubleClickLocked={(clientX, clientY) => {
-                    const rect = document.getElementById('infinite-canvas-container')?.getBoundingClientRect();
-                    if (rect && activeSection) {
-                      const coords = screenToCanvas(clientX, clientY, activeSection.viewport, rect);
-                      handleDoubleClickCanvas(coords.x, coords.y);
-                    }
-                  }}
-                />
-              );
-            }
-            if (el.type === 'arrow') {
-              return <ArrowCard key={el.id} element={el} />;
-            }
-            return null;
-          })}
+          <CanvasElements onDoubleClickCanvas={handleDoubleClickCanvas} />
         </Canvas>
       </main>
 

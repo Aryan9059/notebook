@@ -1,5 +1,6 @@
 import {
   type FC,
+  memo,
   useRef,
   useEffect,
   useCallback,
@@ -16,7 +17,7 @@ interface TextCardProps {
   element: TextElement;
 }
 
-export const TextCard: FC<TextCardProps> = ({ element }) => {
+const TextCardInner: FC<TextCardProps> = ({ element }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const selectedId = useUiStore((state) => state.selectedId);
   const selectedIds = useUiStore((state) => state.selectedIds);
@@ -301,3 +302,19 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
     </div>
   );
 };
+
+export const TextCard = memo(TextCardInner, (prev, next) => {
+  const pe = prev.element;
+  const ne = next.element;
+  return (
+    pe.id === ne.id &&
+    pe.x === ne.x &&
+    pe.y === ne.y &&
+    pe.width === ne.width &&
+    pe.height === ne.height &&
+    pe.content === ne.content &&
+    pe.fontFamily === ne.fontFamily &&
+    pe.fontSize === ne.fontSize &&
+    pe.zIndex === ne.zIndex
+  );
+});

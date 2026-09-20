@@ -1,4 +1,4 @@
-import { type FC, type ReactNode } from 'react';
+import { type FC, type ReactNode, memo } from 'react';
 import { Viewport } from '../../types';
 
 interface WorldLayerProps {
@@ -6,7 +6,7 @@ interface WorldLayerProps {
   children?: ReactNode;
 }
 
-export const WorldLayer: FC<WorldLayerProps> = ({ viewport, children }) => {
+const WorldLayerInner: FC<WorldLayerProps> = ({ viewport, children }) => {
   return (
     <div
       id="canvas-world-layer"
@@ -20,3 +20,5 @@ export const WorldLayer: FC<WorldLayerProps> = ({ viewport, children }) => {
     </div>
   );
 };
+
+export const WorldLayer = memo(WorldLayerInner);

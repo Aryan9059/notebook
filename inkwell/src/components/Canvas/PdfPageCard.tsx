@@ -1,5 +1,6 @@
 import {
   type FC,
+  memo,
   useState,
   useEffect,
   useRef,
@@ -16,10 +17,13 @@ interface PdfPageCardProps {
   onDoubleClickLocked?: (clientX: number, clientY: number) => void;
 }
 
-export const PdfPageCard: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked }) => {
+const PdfPageCardInner: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+
+  // Ref-based drag state — zero React re-renders during drag
+  const isDraggingRef = useRef(false);
+  const posRef = useRef({ x: element.x, y: element.y });
   const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
 
   // Resize interaction refs
@@ -48,14 +52,15 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked
 
   const isSelected = selectedId === element.id || selectedIds.includes(element.id);
 
-  // Local position for fluid 60fps drag
-  const [localPos, setLocalPos] = useState({ x: element.x, y: element.y });
-
+  // Sync external position updates (from undo, store changes) when NOT dragging
   useEffect(() => {
-    if (!isDragging) {
-      setLocalPos({ x: element.x, y: element.y });
+    if (!isDraggingRef.current) {
+      posRef.current = { x: element.x, y: element.y };
+      if (cardRef.current) {
+        cardRef.current.style.transform = `translate(${element.x}px, ${element.y}px)`;
+      }
     }
-  }, [element.x, element.y, isDragging]);
+  }, [element.x, element.y]);
 
   useEffect(() => {
     if (!isResizingRef.current) {
@@ -117,19 +122,19 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked
       setSelectedId(element.id);
 
       e.currentTarget.setPointerCapture(e.pointerId);
-      setIsDragging(true);
+      isDraggingRef.current = true;
       dragStartRef.current = {
         clientX: e.clientX,
         clientY: e.clientY,
-        startX: localPos.x,
-        startY: localPos.y,
+        startX: posRef.current.x,
+        startY: posRef.current.y,
       };
     },
-    [element.id, element.isLocked, activeTool, localPos.x, localPos.y, setSelectedId]
+    [element.id, element.isLocked, activeTool, setSelectedId]
   );
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging || !dragStartRef.current || element.isLocked) return;
+    if (!isDraggingRef.current || !dragStartRef.current || element.isLocked) return;
 
     const state = useNotesStore.getState();
     const activeNb = state.notebooks.find((n) => n.id === state.activeNotebookId);
@@ -139,22 +144,26 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked
     const dxCanvas = (e.clientX - dragStartRef.current.clientX) / zoom;
     const dyCanvas = (e.clientY - dragStartRef.current.clientY) / zoom;
 
-    setLocalPos({
-      x: dragStartRef.current.startX + dxCanvas,
-      y: dragStartRef.current.startY + dyCanvas,
-    });
+    const nextX = dragStartRef.current.startX + dxCanvas;
+    const nextY = dragStartRef.current.startY + dyCanvas;
+    posRef.current = { x: nextX, y: nextY };
+
+    // Direct DOM mutation — no React re-render
+    if (cardRef.current) {
+      cardRef.current.style.transform = `translate(${nextX}px, ${nextY}px)`;
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (isDragging) {
+    if (isDraggingRef.current) {
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
       } catch {
         // Pointer might already be released
       }
-      setIsDragging(false);
+      isDraggingRef.current = false;
       dragStartRef.current = null;
-      moveElement(element.id, localPos.x, localPos.y, true);
+      moveElement(element.id, posRef.current.x, posRef.current.y, true);
     }
   };
 
@@ -172,8 +181,8 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked
       clientY: e.clientY,
       startWidth: currentDimensionsRef.current.width,
       startHeight: currentDimensionsRef.current.height,
-      startX: localPos.x,
-      startY: localPos.y,
+      startX: posRef.current.x,
+      startY: posRef.current.y,
       handle,
     };
   };
@@ -201,7 +210,10 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked
       nextWidth = Math.max(160, Math.round(start.startWidth - dx));
       nextHeight = Math.max(120, Math.round(nextWidth / aspectRatio));
       const nextX = start.startX - (nextWidth - start.startWidth);
-      setLocalPos((prev) => ({ ...prev, x: nextX }));
+      posRef.current = { ...posRef.current, x: nextX };
+      if (cardRef.current) {
+        cardRef.current.style.transform = `translate(${nextX}px, ${posRef.current.y}px)`;
+      }
     }
 
     currentDimensionsRef.current = { width: nextWidth, height: nextHeight };
@@ -224,7 +236,7 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked
       resizeStartRef.current = null;
 
       if (start && start.handle === 'sw') {
-        moveElement(element.id, localPos.x, localPos.y, false);
+        moveElement(element.id, posRef.current.x, posRef.current.y, false);
       }
 
       updateElement(
@@ -271,7 +283,7 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked
         element.isLocked || activeTool === 'hand' ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
       }`}
       style={{
-        transform: `translate(${localPos.x}px, ${localPos.y}px)`,
+        transform: `translate(${element.x}px, ${element.y}px)`,
         width: element.width,
         height: element.height,
         zIndex: element.zIndex,
@@ -384,3 +396,23 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked
     </div>
   );
 };
+
+export const PdfPageCard = memo(PdfPageCardInner, (prev, next) => {
+  // Only re-render if the element data actually changed
+  const pe = prev.element;
+  const ne = next.element;
+  return (
+    pe.id === ne.id &&
+    pe.x === ne.x &&
+    pe.y === ne.y &&
+    pe.width === ne.width &&
+    pe.height === ne.height &&
+    pe.isLocked === ne.isLocked &&
+    pe.zIndex === ne.zIndex &&
+    pe.imageKey === ne.imageKey &&
+    pe.pageNumber === ne.pageNumber &&
+    pe.totalPages === ne.totalPages &&
+    pe.pdfName === ne.pdfName &&
+    prev.onDoubleClickLocked === next.onDoubleClickLocked
+  );
+});

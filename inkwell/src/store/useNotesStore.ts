@@ -40,6 +40,7 @@ interface NotesState {
   setZoomLevel: (zoom: number) => void;
 
   addElement: (element: CanvasElement) => void;
+  addElements: (elements: CanvasElement[]) => void;
   updateElement: (id: string, patch: Partial<CanvasElement>, commitUndo?: boolean) => void;
   moveElement: (id: string, x: number, y: number, commitUndo?: boolean) => void;
   deleteElement: (id: string) => Promise<void>;
@@ -350,6 +351,39 @@ export const useNotesStore = create<NotesState>()(
                   sections: nb.sections.map((sec) =>
                     sec.id === activeSectionId
                       ? { ...sec, elements: [...sec.elements, element] }
+                      : sec
+                  ),
+                }
+              : nb
+          ),
+        }));
+      },
+
+      addElements: (elements: CanvasElement[]) => {
+        const { activeNotebookId, activeSectionId, notebooks, undoStacks } = get();
+        if (!activeNotebookId || !activeSectionId || elements.length === 0) return;
+
+        const currentSection = notebooks
+          .find((nb) => nb.id === activeNotebookId)
+          ?.sections.find((sec) => sec.id === activeSectionId);
+
+        if (!currentSection) return;
+
+        const currentElements = currentSection.elements;
+        const currentStack = undoStacks[activeSectionId] || [];
+        const nextStack = [...currentStack, cloneElements(currentElements)].slice(-MAX_UNDO_STEPS);
+
+        set((state) => ({
+          undoStacks: { ...state.undoStacks, [activeSectionId]: nextStack },
+          redoStacks: { ...state.redoStacks, [activeSectionId]: [] },
+          notebooks: state.notebooks.map((nb) =>
+            nb.id === activeNotebookId
+              ? {
+                  ...nb,
+                  updatedAt: Date.now(),
+                  sections: nb.sections.map((sec) =>
+                    sec.id === activeSectionId
+                      ? { ...sec, elements: [...sec.elements, ...elements] }
                       : sec
                   ),
                 }
