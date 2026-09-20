@@ -158,11 +158,11 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
 
               {/* Apple-style Popover Menu for Notebook Switching & Management */}
               {isDropdownOpen && (
-                <div className="absolute top-full left-0 mt-2 w-72 rounded-2xl bg-white/95 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.18)] border border-black/[0.08] p-2 z-50 animate-fade-in">
-                  <div className="px-2.5 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                <div className="absolute top-full left-0 mt-2 w-[250px] rounded-xl bg-white/95 backdrop-blur-2xl shadow-[0_16px_40px_rgba(0,0,0,0.14)] border border-black/10 p-1.5 z-50 animate-fade-in no-drag">
+                  <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                     Notebooks
                   </div>
-                  <div className="max-h-60 overflow-y-auto my-1 space-y-0.5">
+                  <div className="max-h-56 overflow-y-auto my-0.5 space-y-0.5">
                     {notebooks.map((nb) => {
                       const isActive = nb.id === activeNotebookId;
                       return (
@@ -172,15 +172,15 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                             setActiveNotebook(nb.id);
                             setIsDropdownOpen(false);
                           }}
-                          className={`w-full px-2.5 py-2 rounded-xl text-left flex items-center justify-between group transition-colors cursor-pointer ${
+                          className={`w-full px-2.5 py-1.5 rounded-lg text-left flex items-center justify-between group transition-colors cursor-pointer ${
                             isActive
-                              ? 'bg-black/[0.06] text-black font-semibold'
+                              ? 'bg-black/[0.05] text-black font-semibold'
                               : 'text-gray-700 hover:bg-black/[0.03]'
                           }`}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-1 mr-1.5">
                             <BookOpen
-                              size={14}
+                              size={13}
                               className={isActive ? 'text-black shrink-0' : 'text-gray-400 shrink-0'}
                             />
                             <div className="flex flex-col min-w-0">
@@ -209,12 +209,12 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                               title="Delete Notebook"
                               className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600 transition cursor-pointer"
                             >
-                              <Trash2 size={13} />
+                              <Trash2 size={12} />
                             </button>
 
                             {/* Active checkmark */}
                             {isActive && (
-                              <Check size={14} strokeWidth={2.5} className="text-black shrink-0 ml-0.5" />
+                              <Check size={13} strokeWidth={2.5} className="text-black shrink-0" />
                             )}
                           </div>
                         </div>
@@ -222,7 +222,7 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                     })}
                   </div>
 
-                  <div className="border-t border-black/[0.06] pt-1.5 mt-1.5 space-y-0.5">
+                  <div className="border-t border-black/[0.06] pt-1 mt-1 space-y-0.5">
                     {activeNotebook?.folderPath && (
                       <button
                         type="button"
@@ -235,9 +235,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                             console.error('Failed to open folder:', err);
                           }
                         }}
-                        className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-gray-700 hover:bg-black/[0.04] flex items-center gap-2 cursor-pointer font-medium transition-colors"
+                        className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-700 hover:bg-black/[0.04] flex items-center gap-2 cursor-pointer font-medium transition-colors"
                       >
-                        <Folder size={14} className="text-gray-500" />
+                        <Folder size={13} className="text-gray-500 shrink-0" />
                         <span className="truncate">Reveal in Finder</span>
                       </button>
                     )}
@@ -247,9 +247,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                         setIsDropdownOpen(false);
                         onNewNotebookClick?.();
                       }}
-                      className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-gray-700 hover:bg-black/[0.04] flex items-center gap-2 cursor-pointer font-medium transition-colors"
+                      className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-700 hover:bg-black/[0.04] flex items-center gap-2 cursor-pointer font-medium transition-colors"
                     >
-                      <Plus size={14} className="text-gray-500" />
+                      <Plus size={13} className="text-gray-500 shrink-0" />
                       <span>New Notebook</span>
                     </button>
                     <button
@@ -258,9 +258,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                         setIsDropdownOpen(false);
                         onGoToStartScreen?.();
                       }}
-                      className="w-full px-2.5 py-1.5 rounded-lg text-left text-xs text-gray-600 hover:bg-black/[0.04] flex items-center gap-2 cursor-pointer transition-colors"
+                      className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-600 hover:bg-black/[0.04] flex items-center gap-2 cursor-pointer transition-colors"
                     >
-                      <ArrowLeft size={13} className="text-gray-500" />
+                      <ArrowLeft size={13} className="text-gray-500 shrink-0" />
                       <span>All Notebooks</span>
                     </button>
                   </div>

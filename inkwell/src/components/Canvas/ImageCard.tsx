@@ -74,11 +74,19 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
   // Pointer drag for moving the card (P7/P8: read current zoom dynamically)
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.closest('button') ||
+        target.closest('[data-control-bar]') ||
+        target.closest('[data-lock-badge]') ||
+        target.closest('[data-resize-handle]')
+      ) {
+        e.stopPropagation();
+        return;
+      }
+
       if (element.isLocked) return;
       if (activeTool === 'hand') return; // Hand tool handles canvas panning instead
-
-      const target = e.target as HTMLElement;
-      if (target.closest('button') || target.closest('[data-resize-handle]')) return;
 
       e.stopPropagation();
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -217,7 +225,11 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
 
   const toggleLock = (e: React.MouseEvent) => {
     e.stopPropagation();
-    updateElement(element.id, { isLocked: !element.isLocked }, true);
+    const nextLocked = !element.isLocked;
+    updateElement(element.id, { isLocked: nextLocked }, true);
+    if (!nextLocked) {
+      setSelectedId(element.id);
+    }
   };
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -234,7 +246,7 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
       id={`image-card-${element.id}`}
       data-element-id={element.id}
       onClick={(e) => {
-        if (activeTool !== 'hand') {
+        if (activeTool !== 'hand' && !element.isLocked) {
           e.stopPropagation();
           setSelectedId(element.id);
         }
@@ -257,45 +269,75 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
         zIndex: element.zIndex,
       }}
     >
-      {/* Floating Header Control Bar (shows on hover or when selected) */}
-      <div
-        className={`absolute -top-10 left-0 right-0 h-8 flex items-center justify-between px-2 rounded-xl bg-white/95 backdrop-blur-xl border border-black/[0.08] shadow-[0_4px_16px_rgba(0,0,0,0.08)] transition-opacity z-20 ${
-          isSelected || element.isLocked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-        }`}
-        style={{ pointerEvents: 'auto' }}
-      >
-        <div className="flex items-center gap-1.5 min-w-0 pr-2">
-          <span className="text-[11px] font-medium text-gray-700 truncate max-w-[140px]">
-            {element.name || 'Image'}
-          </span>
-        </div>
+      {/* Floating Header Control Bar (ONLY shows when isSelected) */}
+      {isSelected && (
+        <div
+          data-control-bar="true"
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute -top-10 left-0 right-0 h-8 flex items-center justify-between px-2 rounded-xl bg-white/95 backdrop-blur-xl border border-black/[0.08] shadow-[0_4px_16px_rgba(0,0,0,0.1)] z-40 animate-fade-in"
+          style={{ pointerEvents: 'auto' }}
+        >
+          <div className="flex items-center gap-1.5 min-w-0 pr-2">
+            <span className="text-[11px] font-medium text-gray-700 truncate max-w-[140px]">
+              {element.name || 'Image'}
+            </span>
+          </div>
 
-        <div className="flex items-center gap-1">
-          {/* Lock / Unlock Toggle Button */}
-          <button
-            type="button"
-            onClick={toggleLock}
-            title={element.isLocked ? 'Unlock Image' : 'Lock Image'}
-            className={`w-6 h-6 rounded-lg flex items-center justify-center transition cursor-pointer ${
-              element.isLocked
-                ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
-                : 'text-gray-500 hover:text-gray-900 hover:bg-black/[0.05]'
-            }`}
-          >
-            {element.isLocked ? <Lock size={12} /> : <Unlock size={12} />}
-          </button>
+          <div className="flex items-center gap-1">
+            {/* Lock / Unlock Toggle Button */}
+            <button
+              type="button"
+              onClick={toggleLock}
+              onPointerDown={(e) => e.stopPropagation()}
+              title={element.isLocked ? 'Unlock Image' : 'Lock Image'}
+              className={`px-2 py-0.5 rounded-lg flex items-center gap-1 text-xs font-medium transition cursor-pointer ${
+                element.isLocked
+                  ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-black/[0.05]'
+              }`}
+            >
+              {element.isLocked ? (
+                <>
+                  <Lock size={12} className="text-amber-700" />
+                  <span>Locked</span>
+                </>
+              ) : (
+                <>
+                  <Unlock size={12} className="text-gray-500" />
+                  <span>Lock</span>
+                </>
+              )}
+            </button>
 
-          {/* Delete Button */}
-          <button
-            type="button"
-            onClick={handleDelete}
-            title="Delete Image"
-            className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
-          >
-            <Trash2 size={12} />
-          </button>
+            {/* Delete Button */}
+            <button
+              type="button"
+              onClick={handleDelete}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="Delete Image"
+              className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Interactive Locked Badge in top-right corner when locked */}
+      {element.isLocked && (
+        <button
+          type="button"
+          data-lock-badge="true"
+          onClick={toggleLock}
+          onPointerDown={(e) => e.stopPropagation()}
+          title="Image is locked. Click to unlock."
+          className="absolute top-2.5 right-2.5 z-30 px-2.5 py-1 rounded-lg bg-black/80 hover:bg-black text-white text-[11px] font-medium flex items-center gap-1.5 shadow-md backdrop-blur-md cursor-pointer transition-all hover:scale-105 active:scale-95 border border-white/10"
+          style={{ pointerEvents: 'auto' }}
+        >
+          <Lock size={12} className="text-amber-400" />
+          <span>Locked</span>
+        </button>
+      )}
 
       {/* Image Content */}
       <div

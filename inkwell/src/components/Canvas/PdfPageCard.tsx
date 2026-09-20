@@ -3,8 +3,9 @@ import {
   useState,
   useEffect,
   useRef,
+  useCallback,
 } from 'react';
-import { GripHorizontal, Lock, Unlock } from 'lucide-react';
+import { GripHorizontal, Lock, Unlock, Trash2 } from 'lucide-react';
 import { PdfPageElement } from '../../types';
 import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
@@ -16,7 +17,6 @@ interface PdfPageCardProps {
 
 export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
   const cardRef = useRef<HTMLDivElement>(null);
-  const imageContainerRef = useRef<HTMLDivElement>(null);
 
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const selectedId = useUiStore((state) => state.selectedId);
@@ -25,6 +25,7 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
 
   const updateElement = useNotesStore((state) => state.updateElement);
   const moveElement = useNotesStore((state) => state.moveElement);
+  const deleteElement = useNotesStore((state) => state.deleteElement);
 
   const isSelected = selectedId === element.id;
 
@@ -56,10 +57,7 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
       currentDimensionsRef.current = { width: element.width, height: element.height };
       if (cardRef.current) {
         cardRef.current.style.width = `${element.width}px`;
-        cardRef.current.style.height = `${element.height + 38}px`;
-      }
-      if (imageContainerRef.current) {
-        imageContainerRef.current.style.height = `${element.height}px`;
+        cardRef.current.style.height = `${element.height}px`;
       }
     }
   }, [element.width, element.height]);
@@ -78,25 +76,50 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
 
   const handleToggleLock = (e: React.MouseEvent) => {
     e.stopPropagation();
-    updateElement(element.id, { isLocked: !element.isLocked });
+    const nextLocked = !element.isLocked;
+    updateElement(element.id, { isLocked: nextLocked }, true);
+    if (!nextLocked) {
+      setSelectedId(element.id);
+    }
   };
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (activeTool === 'hand') return;
+  const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedId(element.id);
-
-    if (element.isLocked || e.button !== 0) return;
-
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setIsDragging(true);
-    dragStartRef.current = {
-      clientX: e.clientX,
-      clientY: e.clientY,
-      startX: localPos.x,
-      startY: localPos.y,
-    };
+    deleteElement(element.id);
+    if (selectedId === element.id) setSelectedId(null);
   };
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.closest('button') ||
+        target.closest('[data-control-bar]') ||
+        target.closest('[data-lock-badge]') ||
+        target.closest('[data-resize-handle]')
+      ) {
+        e.stopPropagation();
+        return;
+      }
+
+      if (element.isLocked) return;
+      if (activeTool === 'hand') return;
+      if (e.button !== 0) return;
+
+      e.stopPropagation();
+      setSelectedId(element.id);
+
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setIsDragging(true);
+      dragStartRef.current = {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        startX: localPos.x,
+        startY: localPos.y,
+      };
+    },
+    [element.id, element.isLocked, activeTool, localPos.x, localPos.y, setSelectedId]
+  );
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging || !dragStartRef.current || element.isLocked) return;
@@ -178,10 +201,7 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
 
     if (cardRef.current) {
       cardRef.current.style.width = `${nextWidth}px`;
-      cardRef.current.style.height = `${nextHeight + 38}px`;
-    }
-    if (imageContainerRef.current) {
-      imageContainerRef.current.style.height = `${nextHeight}px`;
+      cardRef.current.style.height = `${nextHeight}px`;
     }
   };
 
@@ -227,56 +247,99 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
       ref={cardRef}
       id={`pdf-page-${element.id}`}
       onClick={handleCardClick}
-      className={`absolute rounded-2xl bg-white select-none transition-shadow duration-150 ${ringStyle}`}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      className={`absolute rounded-2xl bg-white select-none transition-shadow duration-150 ${ringStyle} ${
+        element.isLocked || activeTool === 'hand' ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+      }`}
       style={{
         transform: `translate(${localPos.x}px, ${localPos.y}px)`,
         width: element.width,
-        height: element.height + 38,
+        height: element.height,
         zIndex: element.zIndex,
       }}
     >
-      {/* Header bar: keeps pointer-events-auto */}
-      <div
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        className={`h-[38px] rounded-t-2xl flex items-center justify-between px-3.5 bg-gray-100/90 backdrop-blur-md border-b border-black/[0.06] select-none ${
-          element.isLocked
-            ? 'cursor-default opacity-85'
-            : 'cursor-grab active:cursor-grabbing hover:bg-gray-200/70'
-        } transition`}
-      >
-        <div className="flex items-center gap-2">
-          {!element.isLocked && (
-            <GripHorizontal size={15} className="text-gray-400 shrink-0" />
-          )}
-          <span className="px-2 py-0.5 rounded-full bg-white text-[11px] font-medium text-gray-700 shadow-xs border border-black/[0.04]">
-            p. {element.pageNumber} of {element.totalPages}
-          </span>
-        </div>
+      {/* Floating Control Bar (ONLY shows when isSelected) */}
+      {isSelected && (
+        <div
+          data-control-bar="true"
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute -top-10 left-0 right-0 h-8 flex items-center justify-between px-2.5 rounded-xl bg-white/95 backdrop-blur-xl border border-black/[0.08] shadow-[0_4px_16px_rgba(0,0,0,0.1)] z-40 animate-fade-in"
+          style={{ pointerEvents: 'auto' }}
+        >
+          <div className="flex items-center gap-2 min-w-0 pr-2">
+            <GripHorizontal size={14} className="text-gray-400 shrink-0" />
+            <span className="px-2 py-0.5 rounded-full bg-black/5 text-[10px] font-semibold text-gray-700">
+              p. {element.pageNumber} of {element.totalPages}
+            </span>
+            <span className="text-[11px] font-medium text-gray-600 truncate max-w-[140px]">
+              {element.pdfName}
+            </span>
+          </div>
 
+          <div className="flex items-center gap-1">
+            {/* Lock / Unlock Toggle Button */}
+            <button
+              type="button"
+              onClick={handleToggleLock}
+              onPointerDown={(e) => e.stopPropagation()}
+              title={element.isLocked ? 'Unlock Page' : 'Lock Page'}
+              className={`px-2 py-0.5 rounded-lg flex items-center gap-1 text-xs font-medium transition cursor-pointer ${
+                element.isLocked
+                  ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-black/[0.05]'
+              }`}
+            >
+              {element.isLocked ? (
+                <>
+                  <Lock size={12} className="text-amber-700" />
+                  <span>Locked</span>
+                </>
+              ) : (
+                <>
+                  <Unlock size={12} className="text-gray-500" />
+                  <span>Lock</span>
+                </>
+              )}
+            </button>
+
+            {/* Delete Button */}
+            <button
+              type="button"
+              onClick={handleDelete}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="Delete Page"
+              className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Locked Badge in top-right corner when locked */}
+      {element.isLocked && (
         <button
           type="button"
+          data-lock-badge="true"
           onClick={handleToggleLock}
-          title={element.isLocked ? 'Unlock page (makes draggable)' : 'Lock page (allows writing over top)'}
-          className="p-1 rounded-lg hover:bg-black/5 transition cursor-pointer text-gray-600 hover:text-black"
+          onPointerDown={(e) => e.stopPropagation()}
+          title="Page is locked. Click to unlock."
+          className="absolute top-2.5 right-2.5 z-30 px-2.5 py-1 rounded-lg bg-black/80 hover:bg-black text-white text-[11px] font-medium flex items-center gap-1.5 shadow-md backdrop-blur-md cursor-pointer transition-all hover:scale-105 active:scale-95 border border-white/10"
+          style={{ pointerEvents: 'auto' }}
         >
-          {element.isLocked ? (
-            <Lock size={14} className="text-amber-600" />
-          ) : (
-            <Unlock size={14} className="text-gray-400 hover:text-gray-700" />
-          )}
+          <Lock size={12} className="text-amber-400" />
+          <span>Locked</span>
         </button>
-      </div>
+      )}
 
       {/* Page image layer: §9.3 - when isLocked, pointer-events: none */}
       <div
-        ref={imageContainerRef}
-        className={`w-full relative bg-white rounded-b-2xl overflow-hidden ${
+        className={`w-full h-full relative bg-white rounded-2xl overflow-hidden ${
           element.isLocked ? 'pointer-events-none' : 'pointer-events-auto cursor-pointer'
         }`}
-        style={{ height: element.height }}
       >
         {imageUrl ? (
           <img
@@ -288,13 +351,6 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-400 text-xs font-mono">
             Loading page {element.pageNumber}...
-          </div>
-        )}
-
-        {/* Subtle lock indicator when locked */}
-        {element.isLocked && (
-          <div className="absolute top-2 right-2 px-2 py-1 rounded-md bg-black/60 backdrop-blur-md text-white text-[10px] font-medium flex items-center gap-1 pointer-events-none">
-            <Lock size={10} /> Locked Layer
           </div>
         )}
       </div>
