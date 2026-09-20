@@ -114,9 +114,14 @@ const PdfPageCardInner: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked }
         return;
       }
 
-      if (element.isLocked) return;
       if (activeTool === 'hand' || activeTool === 'arrow') return;
       if (e.button !== 0) return;
+
+      if (element.isLocked) {
+        e.stopPropagation();
+        setSelectedId(element.id);
+        return;
+      }
 
       e.stopPropagation();
       setSelectedId(element.id);
@@ -341,11 +346,25 @@ const PdfPageCardInner: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked }
         </div>
       )}
 
-      {/* Page image layer: §9.3 - when isLocked, pointer-events: none */}
+      {/* Persistent Lock Badge when page is locked */}
+      {element.isLocked && (
+        <div
+          data-lock-badge="true"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedId(element.id);
+          }}
+          title="Locked (click to select and unlock)"
+          className="absolute top-2.5 right-2.5 z-30 flex items-center gap-1 px-2 py-1 rounded-lg bg-black/60 dark:bg-black/80 backdrop-blur-md text-amber-400 text-[10px] font-medium shadow-md pointer-events-auto cursor-pointer hover:bg-black/80 transition"
+        >
+          <Lock size={11} className="fill-amber-400/20" strokeWidth={2.2} />
+          <span>Locked</span>
+        </div>
+      )}
+
+      {/* Page image layer */}
       <div
-        className={`w-full h-full relative bg-white rounded-2xl overflow-hidden ${
-          element.isLocked ? 'pointer-events-none' : 'pointer-events-auto cursor-pointer'
-        }`}
+        className="w-full h-full relative bg-white rounded-2xl overflow-hidden pointer-events-auto cursor-pointer"
       >
         {imageUrl ? (
           <img

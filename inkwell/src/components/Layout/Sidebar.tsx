@@ -9,7 +9,7 @@ import {
   ChevronDown,
   Plus,
   Trash2,
-  BookOpen,
+  Notebook,
   Layers,
   Folder,
   Check,
@@ -140,9 +140,7 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="h-8 px-2.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-800 dark:text-gray-200 text-xs font-medium flex items-center gap-2 transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06] max-w-full"
               >
-                <div className="w-5 h-5 rounded-md bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shrink-0 shadow-xs">
-                  <BookOpen size={11} strokeWidth={2.2} />
-                </div>
+                <Notebook size={15} strokeWidth={2} className="text-gray-700 dark:text-gray-200 shrink-0" />
                 <div className="flex items-center min-w-0 text-left flex-1">
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-xs truncate">
                     {activeNotebook?.name ?? 'Notebook'}
@@ -174,8 +172,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                           }`}
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1 mr-1.5">
-                            <BookOpen
-                              size={13}
+                            <Notebook
+                              size={14}
+                              strokeWidth={2}
                               className={isActive ? 'text-black dark:text-white shrink-0' : 'text-gray-400 dark:text-gray-500 shrink-0'}
                             />
                             <div className="flex flex-col min-w-0">

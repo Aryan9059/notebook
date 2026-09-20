@@ -1,5 +1,5 @@
-import { useState, type FC } from 'react';
-import { Plus, FolderOpen, BookOpen, Clock, Sparkles, Trash2 } from 'lucide-react';
+import { FC, useState } from 'react';
+import { Plus, FolderOpen, Notebook, Clock, Sparkles, Trash2 } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { CreateNotebookDialog } from './CreateNotebookDialog';
 import { ConfirmDialog } from '../Common/ConfirmDialog';
@@ -151,7 +151,7 @@ export const StartScreen: FC = () => {
           {recentNotebooks.length === 0 ? (
             <div className="h-[210px] rounded-2xl border-2 border-dashed border-gray-200/90 dark:border-white/10 p-6 flex flex-col items-center justify-center text-center select-none no-drag">
               <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-[#2A2A2A] text-gray-400 flex items-center justify-center mb-2.5">
-                <BookOpen size={20} />
+                <Notebook size={20} />
               </div>
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400">No recent notebooks</p>
               <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Created notebooks will appear here</p>
@@ -167,7 +167,7 @@ export const StartScreen: FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-[#333333] text-gray-700 dark:text-gray-300 flex items-center justify-center group-hover:bg-gray-200 dark:group-hover:bg-[#3D3D3D] transition-colors">
-                    <BookOpen size={20} />
+                    <Notebook size={20} />
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="px-2.5 py-1 rounded-full bg-gray-100/90 dark:bg-white/[0.08] text-[11px] font-medium text-gray-600 dark:text-gray-300">

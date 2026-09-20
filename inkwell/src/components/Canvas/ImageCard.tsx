@@ -89,8 +89,15 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
         return;
       }
 
-      if (element.isLocked) return;
       if (activeTool === 'hand' || activeTool === 'arrow') return;
+
+      if (element.isLocked) {
+        if (e.button === 0) {
+          e.stopPropagation();
+          setSelectedId(element.id);
+        }
+        return;
+      }
 
       e.stopPropagation();
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -328,12 +335,25 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
         </div>
       )}
 
+      {/* Persistent Lock Badge when element is locked */}
+      {element.isLocked && (
+        <div
+          data-lock-badge="true"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedId(element.id);
+          }}
+          title="Locked (click to select and unlock)"
+          className="absolute top-2.5 right-2.5 z-30 flex items-center gap-1 px-2 py-1 rounded-lg bg-black/60 dark:bg-black/80 backdrop-blur-md text-amber-400 text-[10px] font-medium shadow-md pointer-events-auto cursor-pointer hover:bg-black/80 transition"
+        >
+          <Lock size={11} className="fill-amber-400/20" strokeWidth={2.2} />
+          <span>Locked</span>
+        </div>
+      )}
+
       {/* Image Content */}
       <div
-        className="w-full h-full rounded-2xl overflow-hidden bg-white/50 dark:bg-[#1e1e1e]/60 border border-black/[0.06] dark:border-white/10 shadow-sm flex items-center justify-center"
-        style={{
-          pointerEvents: element.isLocked ? 'none' : 'auto',
-        }}
+        className="w-full h-full rounded-2xl overflow-hidden bg-white/50 dark:bg-[#1e1e1e]/60 border border-black/[0.06] dark:border-white/10 shadow-sm flex items-center justify-center pointer-events-auto"
       >
         {imageUrl ? (
           <img

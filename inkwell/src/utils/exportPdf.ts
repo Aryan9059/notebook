@@ -226,11 +226,23 @@ export async function exportSectionToPdf(
       );
       controls.forEach((c) => c.remove());
 
-      // Ensure text is dark and high-contrast on white PDF paper
+      // Ensure text is high-contrast on white PDF paper while preserving custom user text colors
       const textNodes = cloned.querySelectorAll<HTMLElement>('.ProseMirror, .ProseMirror *');
       textNodes.forEach((node) => {
-        node.style.color = '#111827';
+        const currentCol = node.style.color;
+        if (!currentCol || currentCol === 'rgb(236, 236, 236)' || currentCol === '#ececec' || currentCol === '#ECECEC' || currentCol === 'inherit') {
+          if (el.type === 'text' && el.color) {
+            node.style.color = el.color;
+          } else {
+            node.style.color = '#111827';
+          }
+        }
       });
+
+      if (el.type === 'text' && el.isBold) {
+        const body = cloned.querySelector('.cursor-text') as HTMLElement | null;
+        if (body) body.style.fontWeight = 'bold';
+      }
 
       cloned.style.position = 'absolute';
       cloned.style.left = '0';

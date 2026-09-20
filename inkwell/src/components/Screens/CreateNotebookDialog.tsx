@@ -1,5 +1,5 @@
 import { useState, useEffect, type FC, type FormEvent, type KeyboardEvent } from 'react';
-import { BookOpen, Folder, X } from 'lucide-react';
+import { Notebook, Folder, X } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 
 interface CreateNotebookDialogProps {
@@ -79,7 +79,7 @@ export const CreateNotebookDialog: FC<CreateNotebookDialogProps> = ({
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shadow-md">
-              <BookOpen size={20} strokeWidth={2} />
+              <Notebook size={20} strokeWidth={2} />
             </div>
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">

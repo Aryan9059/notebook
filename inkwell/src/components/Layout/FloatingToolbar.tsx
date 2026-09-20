@@ -20,6 +20,8 @@ import {
   CornerUpRight,
   Sun,
   Moon,
+  Bold,
+  Palette,
 } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
@@ -33,13 +35,26 @@ interface FloatingToolbarProps {
 }
 
 const FONT_FAMILIES = [
-  { label: 'Times New Roman', value: 'Times New Roman' },
-  { label: 'Inter', value: 'Inter' },
+  { label: 'Comic Sans MS', value: 'Comic Sans MS, Comic Neue, cursive, sans-serif' },
+  { label: 'Inter', value: 'Inter, sans-serif' },
+  { label: 'Times New Roman', value: 'Times New Roman, serif' },
   { label: 'System', value: 'var(--font-ui)' },
   { label: 'Fira Code', value: 'Fira Code, monospace' },
 ];
 
 const FONT_SIZES = [14, 16, 18, 24, 32, 48];
+
+const TEXT_COLORS = [
+  { label: 'Default', value: '' }, // Auto (black in light, #ECECEC in dark)
+  { label: 'Red', value: '#EF4444' },
+  { label: 'Orange', value: '#F97316' },
+  { label: 'Amber', value: '#F59E0B' },
+  { label: 'Green', value: '#10B981' },
+  { label: 'Blue', value: '#3B82F6' },
+  { label: 'Purple', value: '#8B5CF6' },
+  { label: 'Pink', value: '#EC4899' },
+  { label: 'Gray', value: '#6B7280' },
+];
 
 export const FloatingToolbar: FC<FloatingToolbarProps> = ({
   onAddPdfClick,
@@ -70,28 +85,37 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
     (el) => el.id === selectedId && el.type === 'text'
   ) as TextElement | undefined;
 
-  const [defaultFontFamily, setDefaultFontFamily] = useState('Inter');
+  const [defaultFontFamily, setDefaultFontFamily] = useState('Comic Sans MS, Comic Neue, cursive, sans-serif');
   const [defaultFontSize, setDefaultFontSize] = useState(18);
+  const [defaultColor, setDefaultColor] = useState<string>('');
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
+  const colorMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setIsMenuOpen(false);
       }
+      if (colorMenuRef.current && !colorMenuRef.current.contains(e.target as Node)) {
+        setIsColorMenuOpen(false);
+      }
     };
-    if (isMenuOpen) {
+    if (isMenuOpen || isColorMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isMenuOpen]);
+  }, [isMenuOpen, isColorMenuOpen]);
 
   const currentFontFamily = selectedTextElement?.fontFamily ?? defaultFontFamily;
   const currentFontSize = selectedTextElement?.fontSize ?? defaultFontSize;
+  const isBold = selectedTextElement?.isBold ?? false;
+  const currentTextColor = selectedTextElement?.color ?? defaultColor;
 
   const handleFontChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -106,6 +130,27 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
     setDefaultFontSize(val);
     if (selectedTextElement) {
       updateElement(selectedTextElement.id, { fontSize: val }, true);
+    }
+  };
+
+  const handleToggleBold = () => {
+    if (selectedTextElement) {
+      const nextBold = !selectedTextElement.isBold;
+      updateElement(selectedTextElement.id, { isBold: nextBold }, true);
+      window.dispatchEvent(new CustomEvent('inkwell-text-bold', { detail: { id: selectedTextElement.id, isBold: nextBold } }));
+    } else {
+      window.dispatchEvent(new CustomEvent('inkwell-text-bold', { detail: {} }));
+    }
+  };
+
+  const handleColorSelect = (col: string) => {
+    setDefaultColor(col);
+    setIsColorMenuOpen(false);
+    if (selectedTextElement) {
+      updateElement(selectedTextElement.id, { color: col }, true);
+      window.dispatchEvent(new CustomEvent('inkwell-text-color', { detail: { id: selectedTextElement.id, color: col } }));
+    } else {
+      window.dispatchEvent(new CustomEvent('inkwell-text-color', { detail: { color: col } }));
     }
   };
 
@@ -226,6 +271,110 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
             size={12}
             className="pointer-events-none absolute right-1 text-gray-400"
           />
+        </div>
+
+        {/* Separator line */}
+        <div className="w-[1px] h-3.5 bg-gray-300/80 dark:bg-white/10 mx-1" />
+
+        {/* Bold Button */}
+        <button
+          type="button"
+          onClick={handleToggleBold}
+          title="Toggle Bold"
+          className={`w-6 h-6 rounded-lg flex items-center justify-center transition cursor-pointer ${
+            isBold
+              ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+              : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08]'
+          }`}
+        >
+          <Bold size={13} strokeWidth={isBold ? 3 : 2.2} />
+        </button>
+
+        {/* Separator line */}
+        <div className="w-[1px] h-3.5 bg-gray-300/80 dark:bg-white/10 mx-1" />
+
+        {/* Text Color Picker button & Popover */}
+        <div ref={colorMenuRef} className="relative flex items-center">
+          <button
+            type="button"
+            onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
+            title="Text Color"
+            className="h-6 px-1.5 rounded-lg flex items-center gap-1 text-gray-700 dark:text-gray-300 hover:bg-black/[0.05] dark:hover:bg-white/[0.08] transition cursor-pointer"
+          >
+            <div className="flex flex-col items-center justify-center -space-y-0.5">
+              <span className="font-bold text-[11px] leading-none">A</span>
+              <span
+                className="w-3.5 h-[2.5px] rounded-full"
+                style={{
+                  backgroundColor: currentTextColor
+                    ? currentTextColor
+                    : theme === 'dark'
+                    ? '#ECECEC'
+                    : '#111827',
+                }}
+              />
+            </div>
+            <ChevronDown size={10} className="text-gray-400" />
+          </button>
+
+          {/* Color Palette Popover */}
+          {isColorMenuOpen && (
+            <div className="absolute top-full right-0 mt-2 p-2.5 rounded-xl bg-white/95 dark:bg-[#262626]/98 backdrop-blur-2xl shadow-[0_12px_32px_rgba(0,0,0,0.15)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.5)] border border-black/10 dark:border-white/10 z-50 animate-fade-in no-drag w-44">
+              <div className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-1">
+                Text Color
+              </div>
+              <div className="grid grid-cols-5 gap-1.5 mb-2">
+                {TEXT_COLORS.map((tc) => {
+                  const isSelectedColor =
+                    tc.value === ''
+                      ? !currentTextColor
+                      : currentTextColor.toLowerCase() === tc.value.toLowerCase();
+                  return (
+                    <button
+                      key={tc.label}
+                      type="button"
+                      onClick={() => handleColorSelect(tc.value)}
+                      title={tc.label}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform hover:scale-110 cursor-pointer border ${
+                        isSelectedColor
+                          ? 'ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-[#262626]'
+                          : 'border-black/15 dark:border-white/20'
+                      }`}
+                      style={{
+                        backgroundColor:
+                          tc.value === ''
+                            ? theme === 'dark'
+                              ? '#ECECEC'
+                              : '#111827'
+                            : tc.value,
+                      }}
+                    >
+                      {tc.value === '' && (
+                        <span className="text-[9px] font-bold text-white dark:text-black">
+                          A
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Hex Color Picker */}
+              <div className="border-t border-black/[0.06] dark:border-white/[0.08] pt-2 mt-1 flex items-center justify-between px-1">
+                <label className="text-[11px] text-gray-600 dark:text-gray-400 font-medium cursor-pointer flex items-center gap-1.5">
+                  <Palette size={12} />
+                  <span>Custom</span>
+                </label>
+                <input
+                  type="color"
+                  value={currentTextColor || (theme === 'dark' ? '#ececec' : '#111827')}
+                  onChange={(e) => handleColorSelect(e.target.value)}
+                  className="w-5 h-5 rounded-md border-0 bg-transparent cursor-pointer p-0"
+                  title="Choose custom color"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

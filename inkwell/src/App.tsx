@@ -71,7 +71,7 @@ export default function App() {
       width: 320,
       height: null,
       content: '<p></p>',
-      fontFamily: 'Inter',
+      fontFamily: 'Comic Sans MS, Comic Neue, cursive, sans-serif',
       fontSize: 18,
       zIndex: 1000,
     };
@@ -312,7 +312,7 @@ export default function App() {
           width: 340,
           height: null,
           content: paragraphs || '<p></p>',
-          fontFamily: 'Inter',
+          fontFamily: 'Comic Sans MS, Comic Neue, cursive, sans-serif',
           fontSize: 18,
           zIndex: 1000,
         };

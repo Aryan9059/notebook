@@ -36,6 +36,8 @@ export interface TextElement extends BaseElement {
   content: string;         // TipTap HTML
   fontFamily: string;
   fontSize: number;
+  color?: string;
+  isBold?: boolean;
 }
 
 export interface PdfPageElement extends BaseElement {

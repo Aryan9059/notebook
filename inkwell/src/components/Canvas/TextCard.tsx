@@ -39,11 +39,20 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
   const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
 
   // Resize handling
+  const textBodyRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
-  const resizeStartRef = useRef<{ clientX: number; clientY: number; startWidth: number } | null>(null);
+  const resizeModeRef = useRef<'width' | 'scale'>('width');
+  const resizeStartRef = useRef<{
+    clientX: number;
+    clientY: number;
+    startWidth: number;
+    startHeight: number;
+    startFontSize: number;
+  } | null>(null);
   const currentWidthRef = useRef(element.width || 340);
+  const currentFontSizeRef = useRef(element.fontSize || 18);
 
-  // Sync external position and width updates
+  // Sync external position, width, and font size updates
   useEffect(() => {
     if (!isDraggingRef.current) {
       posRef.current = { x: element.x, y: element.y };
@@ -63,6 +72,16 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
     }
   }, [element.width]);
 
+  useEffect(() => {
+    if (!isResizingRef.current) {
+      const fs = element.fontSize || 18;
+      currentFontSizeRef.current = fs;
+      if (textBodyRef.current) {
+        textBodyRef.current.style.fontSize = `${fs}px`;
+      }
+    }
+  }, [element.fontSize]);
+
   const editor = useEditor({
     extensions: [StarterKit, TextStyleKit],
     content: element.content,
@@ -80,6 +99,39 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
       }
     }
   }, [editor, isEditing]);
+
+  // Listen for toolbar bold and color actions
+  useEffect(() => {
+    const onToggleBold = (e: Event) => {
+      const customEv = e as CustomEvent<{ id?: string; isBold?: boolean }>;
+      if (!editor) return;
+      if (customEv.detail?.id && customEv.detail.id !== element.id) return;
+      if (!isEditing && selectedId !== element.id) return;
+
+      editor.chain().focus().toggleBold().run();
+    };
+
+    const onSetColor = (e: Event) => {
+      const customEv = e as CustomEvent<{ id?: string; color?: string }>;
+      if (!editor) return;
+      if (customEv.detail?.id && customEv.detail.id !== element.id) return;
+      if (!isEditing && selectedId !== element.id) return;
+
+      const col = customEv.detail?.color;
+      if (col) {
+        editor.chain().focus().setColor(col).run();
+      } else {
+        editor.chain().focus().unsetColor().run();
+      }
+    };
+
+    window.addEventListener('inkwell-text-bold', onToggleBold);
+    window.addEventListener('inkwell-text-color', onSetColor);
+    return () => {
+      window.removeEventListener('inkwell-text-bold', onToggleBold);
+      window.removeEventListener('inkwell-text-color', onSetColor);
+    };
+  }, [editor, element.id, isEditing, selectedId]);
 
   const handleBlur = useCallback(() => {
     if (editor) {
@@ -145,8 +197,8 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
     }
   };
 
-  // Resize pointer event handlers
-  const handleResizePointerDown = (e: React.PointerEvent) => {
+  // Resize pointer event handlers (supporting width wrapping and corner font scaling)
+  const handleResizePointerDown = (e: React.PointerEvent, mode: 'width' | 'scale' = 'width') => {
     if (activeTool === 'hand') return;
     e.stopPropagation();
     e.preventDefault();
@@ -154,10 +206,21 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
 
     e.currentTarget.setPointerCapture(e.pointerId);
     isResizingRef.current = true;
+    resizeModeRef.current = mode;
+
+    const state = useNotesStore.getState();
+    const activeNb = state.notebooks.find((n) => n.id === state.activeNotebookId);
+    const activeSec = activeNb?.sections.find((s) => s.id === state.activeSectionId);
+    const zoom = activeSec?.viewport.zoom ?? 1;
+
+    const currentHeight = cardRef.current?.getBoundingClientRect().height ?? 60;
+
     resizeStartRef.current = {
       clientX: e.clientX,
       clientY: e.clientY,
       startWidth: currentWidthRef.current,
+      startHeight: currentHeight / zoom,
+      startFontSize: currentFontSizeRef.current,
     };
   };
 
@@ -171,11 +234,35 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
     const zoom = activeSec?.viewport.zoom ?? 1;
 
     const dxCanvas = (e.clientX - resizeStartRef.current.clientX) / zoom;
-    const nextWidth = Math.max(160, Math.round(resizeStartRef.current.startWidth + dxCanvas));
+    const dyCanvas = (e.clientY - resizeStartRef.current.clientY) / zoom;
 
-    currentWidthRef.current = nextWidth;
-    if (cardRef.current) {
-      cardRef.current.style.width = `${nextWidth}px`;
+    if (resizeModeRef.current === 'scale') {
+      const startW = resizeStartRef.current.startWidth;
+      const startH = Math.max(resizeStartRef.current.startHeight, 40);
+      const startSize = resizeStartRef.current.startFontSize;
+
+      // Diagonal drag progress smoothly scales text font size and card width together
+      const progress = (dxCanvas / startW + dyCanvas / startH) / 1.4;
+      const scaleFactor = Math.max(0.25, 1 + progress);
+      const nextWidth = Math.max(100, Math.round(startW * scaleFactor));
+      const nextFontSize = Math.max(10, Math.min(160, Math.round(startSize * scaleFactor)));
+
+      currentWidthRef.current = nextWidth;
+      currentFontSizeRef.current = nextFontSize;
+
+      if (cardRef.current) {
+        cardRef.current.style.width = `${nextWidth}px`;
+      }
+      if (textBodyRef.current) {
+        textBodyRef.current.style.fontSize = `${nextFontSize}px`;
+      }
+    } else {
+      // Width-only adjustment (word wrapping)
+      const nextWidth = Math.max(140, Math.round(resizeStartRef.current.startWidth + dxCanvas));
+      currentWidthRef.current = nextWidth;
+      if (cardRef.current) {
+        cardRef.current.style.width = `${nextWidth}px`;
+      }
     }
   };
 
@@ -187,8 +274,18 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
         // Ignored
       }
       isResizingRef.current = false;
+      const mode = resizeModeRef.current;
       resizeStartRef.current = null;
-      updateElement(element.id, { width: currentWidthRef.current }, true);
+
+      if (mode === 'scale') {
+        updateElement(
+          element.id,
+          { width: currentWidthRef.current, fontSize: currentFontSizeRef.current },
+          true
+        );
+      } else {
+        updateElement(element.id, { width: currentWidthRef.current }, true);
+      }
     }
   };
 
@@ -259,11 +356,14 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
 
       {/* Transparent Text Body (Microsoft OneNote seamless style) */}
       <div
+        ref={textBodyRef}
         className="p-2 cursor-text text-gray-900 dark:text-[#ECECEC] leading-relaxed outline-none"
         onBlur={handleBlur}
         style={{
-          fontFamily: element.fontFamily || 'inherit',
+          fontFamily: element.fontFamily || 'Comic Sans MS, Comic Neue, cursive, sans-serif',
           fontSize: `${element.fontSize || 18}px`,
+          color: element.color || undefined,
+          fontWeight: element.isBold ? 'bold' : 'normal',
         }}
       >
         <EditorContent editor={editor} />
@@ -272,9 +372,9 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
       {/* Resize Handles (Right Edge + Bottom-Right Corner) */}
       {(isSelected || isEditing) && (
         <>
-          {/* Right edge resize bar */}
+          {/* Right edge resize bar (Width wrapping) */}
           <div
-            onPointerDown={handleResizePointerDown}
+            onPointerDown={(e) => handleResizePointerDown(e, 'width')}
             onPointerMove={handleResizePointerMove}
             onPointerUp={handleResizePointerUp}
             onPointerCancel={handleResizePointerUp}
@@ -285,13 +385,13 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
             <div className="w-1 h-6 rounded-full bg-gray-400/40 dark:bg-gray-500/40 group-hover/resize:bg-black dark:group-hover/resize:bg-white group-hover/resize:scale-y-125 transition-all" />
           </div>
 
-          {/* Bottom-right corner handle */}
+          {/* Bottom-right corner handle (Right lower dot: Scales text font size & card smoothly) */}
           <div
-            onPointerDown={handleResizePointerDown}
+            onPointerDown={(e) => handleResizePointerDown(e, 'scale')}
             onPointerMove={handleResizePointerMove}
             onPointerUp={handleResizePointerUp}
             onPointerCancel={handleResizePointerUp}
-            title="Drag to resize width"
+            title="Drag corner to smoothly scale text & font size"
             className="absolute -bottom-1.5 -right-1.5 w-4 h-4 cursor-nwse-resize flex items-center justify-center group/corner z-20"
             style={{ pointerEvents: 'auto' }}
           >
@@ -315,6 +415,8 @@ export const TextCard = memo(TextCardInner, (prev, next) => {
     pe.content === ne.content &&
     pe.fontFamily === ne.fontFamily &&
     pe.fontSize === ne.fontSize &&
+    pe.color === ne.color &&
+    pe.isBold === ne.isBold &&
     pe.zIndex === ne.zIndex
   );
 });
