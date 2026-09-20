@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@theme {
+  --color-canvas:        #F8F9FA;
+  --color-chrome:        #EAEBED;
+  --color-sidebar:       #F3F4F6;
+  --color-pill:          #9CA3AF;
+  --color-pill-active:   #374151;
+  --color-stroke:        #6B7280;
+  --color-dot:           #B4B9C2;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;              /* the canvas owns all scrolling */
+    overscroll-behavior: none;     /* kills macOS rubber-band / swipe-back */
+    font-family: var(--font-ui);
+    background: var(--color-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: default;
+    color: #111827;
+  }
+  input, textarea, [contenteditable="true"] {
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
+  }
+  .ProseMirror {
+    outline: none;
+    min-height: 48px;
+    line-height: 1.6;
+  }
+  .ProseMirror p {
+    margin: 0 0 0.5em 0;
+  }
+  .ProseMirror p:last-child {
+    margin-bottom: 0;
+  }
+}
+
+/* Subtle macOS thin scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* Native macOS traffic-light clearance when titleBarStyle is Overlay */
+.titlebar-pad { padding-top: 32px; }
+.drag-region  { -webkit-app-region: drag; }
+.no-drag      { -webkit-app-region: no-drag; }
+
+/* Keyframe animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

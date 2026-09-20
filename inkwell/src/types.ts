@@ -1,0 +1,61 @@
+export const SCHEMA_VERSION = 1;
+
+export interface Notebook {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  sections: Section[];
+}
+
+export interface Section {
+  id: string;
+  name: string;
+  viewport: Viewport;
+  elements: CanvasElement[];
+}
+
+export interface Viewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+export interface BaseElement {
+  id: string;
+  x: number;          // canvas-space, NOT screen-space
+  y: number;
+  zIndex: number;
+}
+
+export interface TextElement extends BaseElement {
+  type: 'text';
+  width: number;
+  height: number | null;   // null = auto-grow
+  content: string;         // TipTap HTML
+  fontFamily: string;
+  fontSize: number;
+}
+
+export interface PdfPageElement extends BaseElement {
+  type: 'pdf-page';
+  pdfId: string;           // groups pages from one import
+  pdfName: string;
+  pageNumber: number;
+  totalPages: number;
+  width: number;           // canvas-space CSS px at zoom 1
+  height: number;
+  imageKey: string;        // IndexedDB key — NOT a data URL. See §7.
+  isLocked: boolean;
+}
+
+export type CanvasElement = TextElement | PdfPageElement;
+
+/** Transient — never persisted */
+export interface UiState {
+  selectedId: string | null;
+  editingId: string | null;
+  isSidebarOpen: boolean;
+  isImporting: boolean;
+  importProgress: { done: number; total: number } | null;
+}
