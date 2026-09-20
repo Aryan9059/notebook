@@ -9,7 +9,6 @@ import {
 } from '../types.ts';
 import { deletePageImage } from './imageStore.ts';
 import { calculateTargetZoom } from '../utils/canvasMath.ts';
-import { saveNotebookToDisk } from '../utils/bundle.ts';
 
 const MAX_UNDO_STEPS = 50;
 
@@ -23,7 +22,7 @@ interface NotesState {
   redoStacks: Record<string, CanvasElement[][]>;
 
   // Actions
-  createNotebook: (name: string, folderPath?: string) => Notebook;
+  createNotebook: (name: string) => Notebook;
   deleteNotebook: (id: string) => Promise<void>;
   setActiveNotebook: (id: string | null) => void;
   renameNotebook: (id: string, name: string) => void;
@@ -68,7 +67,7 @@ export const useNotesStore = create<NotesState>()(
       undoStacks: {},
       redoStacks: {},
 
-      createNotebook: (name: string, folderPath?: string) => {
+      createNotebook: (name: string) => {
         const initialSection: Section = {
           id: crypto.randomUUID(),
           name: 'Section 1',
@@ -79,7 +78,6 @@ export const useNotesStore = create<NotesState>()(
         const newNotebook: Notebook = {
           id: crypto.randomUUID(),
           name: name.trim(),
-          folderPath: folderPath?.trim() || undefined,
           createdAt: Date.now(),
           updatedAt: Date.now(),
           sections: [initialSection],
@@ -90,12 +88,6 @@ export const useNotesStore = create<NotesState>()(
           activeNotebookId: newNotebook.id,
           activeSectionId: initialSection.id,
         }));
-
-        if (newNotebook.folderPath) {
-          saveNotebookToDisk(newNotebook).catch((err) =>
-            console.error('[STORAGE] Failed to save new notebook to disk:', err)
-          );
-        }
 
         return newNotebook;
       },
@@ -637,10 +629,23 @@ export const useNotesStore = create<NotesState>()(
         }
         return persisted as never;
       },
-      onRehydrateStorage: () => (_state, error) => {
+      onRehydrateStorage: () => (state, error) => {
         if (error) {
-          localStorage.removeItem('inkwell-v1');
-          location.reload();
+          console.error('[STORAGE] Persist rehydration error:', error);
+          return;
+        }
+        if (state) {
+          // Ensure active notebook and active section IDs point to valid existing entities
+          const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+          if (!currentNb && state.notebooks.length > 0) {
+            state.activeNotebookId = state.notebooks[0].id;
+            state.activeSectionId = state.notebooks[0].sections[0]?.id ?? null;
+          } else if (currentNb) {
+            const hasSec = currentNb.sections.some((s) => s.id === state.activeSectionId);
+            if (!hasSec && currentNb.sections.length > 0) {
+              state.activeSectionId = currentNb.sections[0].id;
+            }
+          }
         }
       },
     }
@@ -658,33 +663,4 @@ export const useActiveSection = () =>
     const activeNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
     return activeNb?.sections.find((sec) => sec.id === state.activeSectionId);
   });
-
-// Debounced auto-save to disk for any notebook that has a folderPath configured
-let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
-
-useNotesStore.subscribe((state, prevState) => {
-  if (state.notebooks !== prevState.notebooks && state.activeNotebookId) {
-    const activeNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
-    if (activeNb?.folderPath) {
-      if (autoSaveTimer) clearTimeout(autoSaveTimer);
-      autoSaveTimer = setTimeout(() => {
-        saveNotebookToDisk(activeNb).catch((err) =>
-          console.error('[STORAGE] Auto-save to disk error:', err)
-        );
-      }, 1000);
-    }
-  }
-});
-
-// Sync all notebooks that have a designated folderPath to disk
-export function syncAllFolderNotebooks(): void {
-  const { notebooks } = useNotesStore.getState();
-  for (const nb of notebooks) {
-    if (nb.folderPath) {
-      saveNotebookToDisk(nb).catch((err) =>
-        console.error(`[STORAGE] Failed to sync notebook "${nb.name}":`, err)
-      );
-    }
-  }
-}
 

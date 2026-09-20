@@ -127,7 +127,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     (startX: number, startY: number, endX: number, endY: number, isFlipped = false) => {
       const dist = Math.hypot(endX - startX, endY - startY);
       const flip = isFlipped ? -1 : 1;
-      const baseH = Math.min(60, Math.max(25, dist * 0.22));
+      const baseH = Math.max(28, Math.min(260, dist * 0.28));
 
       const newArrow: ArrowElement = {
         id: crypto.randomUUID(),
@@ -140,7 +140,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         endY,
         controlOffset: flip * baseH,
         color: '#000000',
-        strokeWidth: 2.5,
+        strokeWidth: 1.8,
         arrowHeadPosition: 'start', // Arrowhead at first clicked point
         zIndex: 500,
       };
@@ -350,6 +350,21 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
       } else if ((e.metaKey || e.ctrlKey) && e.code === 'Digit0') {
         e.preventDefault();
         resetViewport();
+      } else if (
+        (e.metaKey || e.ctrlKey) &&
+        (e.code === 'KeyA' || e.key === 'a' || e.key === 'A') &&
+        !isInput &&
+        !editingId
+      ) {
+        // Cmd+A / Ctrl+A: Select all canvas elements in the active section
+        e.preventDefault();
+        const state = useNotesStore.getState();
+        const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+        const currentSec = currentNb?.sections.find((s) => s.id === state.activeSectionId);
+        const allElements = currentSec?.elements || [];
+        if (allElements.length > 0) {
+          setSelectedIds(allElements.map((el) => el.id));
+        }
       } else if (e.key === 'Escape') {
         e.preventDefault();
         if (arrowDraftRef.current) {
@@ -402,6 +417,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     selectedIds,
     setEditingId,
     setSelectedId,
+    setSelectedIds,
     clearSelection,
     deleteElement,
     deleteElements,
@@ -708,14 +724,14 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
 
           const nx = -dy / safeDist;
           const ny = dx / safeDist;
-          const baseH = Math.min(60, Math.max(25, dist * 0.22));
+          const baseH = Math.max(28, Math.min(260, dist * 0.28));
           const flip = isFlipped ? -1 : 1;
           const h = flip * baseH;
           const cx = (startX + currentX) / 2 + nx * h;
           const cy = (startY + currentY) / 2 + ny * h;
 
-          const headLen = 13;
-          const headWidth = 5;
+          const headLen = 11.5;
+          const headWidth = 4.2;
 
           const vStartX = startX - cx;
           const vStartY = startY - cy;
@@ -734,8 +750,8 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
           const startRightX = startBaseX - vxStart * headWidth;
           const startRightY = startBaseY - vyStart * headWidth;
 
-          const pathStartX = startTipX - uxStart * (headLen - 2.5);
-          const pathStartY = startTipY - uyStart * (headLen - 2.5);
+          const pathStartX = startTipX - uxStart * (headLen - 2.0);
+          const pathStartY = startTipY - uyStart * (headLen - 2.0);
 
           const draftColor = isDark ? '#ECECEC' : '#000000';
 
@@ -749,7 +765,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
                 d={`M ${pathStartX} ${pathStartY} Q ${cx} ${cy} ${currentX} ${currentY}`}
                 fill="none"
                 stroke={draftColor}
-                strokeWidth={2.5}
+                strokeWidth={1.8}
                 strokeLinecap="round"
               />
               {/* Arrowhead at Start point */}

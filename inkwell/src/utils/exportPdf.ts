@@ -38,7 +38,7 @@ interface ArrowGeometry {
 
 function computeArrowGeometry(el: ArrowElement, bboxX: number, bboxY: number): ArrowGeometry {
   const { startX, startY, endX, endY } = el;
-  const strokeWidth = el.strokeWidth || 2.5;
+  const strokeWidth = el.strokeWidth || 1.8;
 
   // On white PDF paper, default black or light colors should render as high-contrast dark
   let arrowColor = el.color || '#111827';
@@ -57,7 +57,7 @@ function computeArrowGeometry(el: ArrowElement, bboxX: number, bboxY: number): A
   const nx = -dy / safeDist;
   const ny = dx / safeDist;
 
-  const h = el.controlOffset !== undefined ? el.controlOffset : Math.min(60, Math.max(25, safeDist * 0.22));
+  const h = el.controlOffset !== undefined ? el.controlOffset : Math.max(28, Math.min(260, safeDist * 0.28));
 
   const mx = (startX + endX) / 2;
   const my = (startY + endY) / 2;
@@ -65,8 +65,8 @@ function computeArrowGeometry(el: ArrowElement, bboxX: number, bboxY: number): A
   const cx = mx + nx * h;
   const cy = my + ny * h;
 
-  const headLen = 13;
-  const headWidth = 5;
+  const headLen = 11.5;
+  const headWidth = 4.2;
 
   const hasStartHead = arrowHeadPosition === 'start' || arrowHeadPosition === 'both';
   const hasEndHead = arrowHeadPosition === 'end' || arrowHeadPosition === 'both';
@@ -106,11 +106,11 @@ function computeArrowGeometry(el: ArrowElement, bboxX: number, bboxY: number): A
   const endRightX = endBaseX - vxEnd * headWidth;
   const endRightY = endBaseY - vyEnd * headWidth;
 
-  // Shaft path endpoints recessed inside arrowhead by (headLen - 2.5) so rounded linecap never pokes out of the tip
-  const pathStartX = hasStartHead ? startTipX - uxStart * (headLen - 2.5) : startX - bboxX;
-  const pathStartY = hasStartHead ? startTipY - uyStart * (headLen - 2.5) : startY - bboxY;
-  const pathEndX = hasEndHead ? endTipX - uxEnd * (headLen - 2.5) : endX - bboxX;
-  const pathEndY = hasEndHead ? endTipY - uyEnd * (headLen - 2.5) : endY - bboxY;
+  // Shaft path endpoints recessed inside arrowhead by (headLen - 2.0) so rounded linecap never pokes out of the tip
+  const pathStartX = hasStartHead ? startTipX - uxStart * (headLen - 2.0) : startX - bboxX;
+  const pathStartY = hasStartHead ? startTipY - uyStart * (headLen - 2.0) : startY - bboxY;
+  const pathEndX = hasEndHead ? endTipX - uxEnd * (headLen - 2.0) : endX - bboxX;
+  const pathEndY = hasEndHead ? endTipY - uyEnd * (headLen - 2.0) : endY - bboxY;
 
   return {
     sx: startX - bboxX,
@@ -169,7 +169,7 @@ export async function exportSectionToPdf(
       const safeDist = Math.max(dist, 1);
       const nx = -dy / safeDist;
       const ny = dx / safeDist;
-      const h = el.controlOffset !== undefined ? el.controlOffset : Math.min(60, Math.max(25, safeDist * 0.22));
+      const h = el.controlOffset !== undefined ? el.controlOffset : Math.max(28, Math.min(260, safeDist * 0.28));
       const cx = (el.startX + el.endX) / 2 + nx * h;
       const cy = (el.startY + el.endY) / 2 + ny * h;
 

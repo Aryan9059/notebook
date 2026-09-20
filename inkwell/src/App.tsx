@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, type ChangeEvent } from 'react';
-import { useNotesStore, syncAllFolderNotebooks } from './store/useNotesStore';
+import { useNotesStore } from './store/useNotesStore';
 import { useUiStore } from './store/useUiStore';
 import { collectGarbage, putPageImage } from './store/imageStore';
 import { StartScreen } from './components/Screens/StartScreen';
@@ -42,22 +42,35 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // §7 / §9.5: Run collectGarbage once on app start and sync any folder-based notebooks to disk
+  // §7: Run collectGarbage once on app start only when hydrated notebooks exist
   useEffect(() => {
     const nbs = useNotesStore.getState().notebooks;
-    const liveKeys = new Set<string>();
-    for (const nb of nbs) {
-      for (const sec of nb.sections) {
-        for (const el of sec.elements) {
-          if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
-            liveKeys.add(el.imageKey);
+    if (nbs && nbs.length > 0) {
+      const liveKeys = new Set<string>();
+      for (const nb of nbs) {
+        for (const sec of nb.sections) {
+          for (const el of sec.elements) {
+            if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
+              liveKeys.add(el.imageKey);
+            }
           }
         }
       }
+      collectGarbage(liveKeys).catch(console.error);
     }
-    collectGarbage(liveKeys).catch(console.error);
-    syncAllFolderNotebooks();
-  }, []); // Only run on mount — not on every notebooks change
+  }, []);
+
+  // Ensure any in-progress note editing is safely committed when quitting/unloading
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const { editingId, setEditingId } = useUiStore.getState();
+      if (editingId) {
+        setEditingId(null);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   // Double click empty canvas creates new TextElement at canvas position (§8.1, §9.1)
   const handleDoubleClickCanvas = (canvasX: number, canvasY: number) => {
@@ -413,7 +426,7 @@ export default function App() {
       <CreateNotebookDialog
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        onCreate={(name, folderPath) => createNotebook(name, folderPath)}
+        onCreate={(name) => createNotebook(name)}
       />
     </div>
   );

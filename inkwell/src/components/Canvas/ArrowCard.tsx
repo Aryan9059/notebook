@@ -22,6 +22,9 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
   const deleteElement = useNotesStore((state) => state.deleteElement);
 
   const isSelected = selectedId === element.id || selectedIds.includes(element.id);
+  // The floating action bar ("dialog box") should ONLY appear when this arrow is directly and individually selected,
+  // NOT when selected via marquee/drag selection or part of a multi-selection.
+  const isDirectlySelected = selectedId === element.id && selectedIds.length <= 1;
 
   // Drag interaction refs for handles
   const isDraggingHandleRef = useRef<'start' | 'end' | 'control' | 'body' | null>(null);
@@ -36,7 +39,7 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
   } | null>(null);
 
   const { startX, startY, endX, endY } = element;
-  const strokeWidth = element.strokeWidth || 2.5;
+  const strokeWidth = element.strokeWidth || 1.8;
   // Default black in light mode, crisp gray/white in dark mode
   const color = element.color
     ? isDark && (element.color === '#000000' || element.color === '#111827')
@@ -58,7 +61,7 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
   const ny = dx / safeDist;
 
   // Arc curvature height (signed: positive or negative for upward/downward arch)
-  const h = element.controlOffset !== undefined ? element.controlOffset : Math.min(60, Math.max(25, safeDist * 0.22));
+  const h = element.controlOffset !== undefined ? element.controlOffset : Math.max(28, Math.min(260, safeDist * 0.28));
 
   // Midpoint
   const mx = (startX + endX) / 2;
@@ -68,9 +71,9 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
   const cx = mx + nx * h;
   const cy = my + ny * h;
 
-  // Sleek, modern arrowhead dimensions (13px length, 10px total width)
-  const headLen = 13;
-  const headWidth = 5;
+  // Sleek, modern arrowhead dimensions (11.5px length, 8.4px total width)
+  const headLen = 11.5;
+  const headWidth = 4.2;
 
   const hasStartHead = arrowHeadPosition === 'start' || arrowHeadPosition === 'both';
   const hasEndHead = arrowHeadPosition === 'end' || arrowHeadPosition === 'both';
@@ -114,11 +117,11 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
   const endRightX = endBaseX - vxEnd * headWidth;
   const endRightY = endBaseY - vyEnd * headWidth;
 
-  // Shaft path endpoints: recessed inside arrowhead by (headLen - 2.5) so rounded linecap never pokes out of the tip
-  const pathStartX = hasStartHead ? startTipX - uxStart * (headLen - 2.5) : startX;
-  const pathStartY = hasStartHead ? startTipY - uyStart * (headLen - 2.5) : startY;
-  const pathEndX = hasEndHead ? endTipX - uxEnd * (headLen - 2.5) : endX;
-  const pathEndY = hasEndHead ? endTipY - uyEnd * (headLen - 2.5) : endY;
+  // Shaft path endpoints: recessed inside arrowhead by (headLen - 2.0) so rounded linecap never pokes out of the tip
+  const pathStartX = hasStartHead ? startTipX - uxStart * (headLen - 2.0) : startX;
+  const pathStartY = hasStartHead ? startTipY - uyStart * (headLen - 2.0) : startY;
+  const pathEndX = hasEndHead ? endTipX - uxEnd * (headLen - 2.0) : endX;
+  const pathEndY = hasEndHead ? endTipY - uyEnd * (headLen - 2.0) : endY;
 
   // Handle pointer down for endpoints or curvature
   const handlePointerDown = useCallback(
@@ -371,48 +374,50 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
             className="rounded-full bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 border-2 border-white dark:border-black shadow-md cursor-move hover:scale-125 transition-transform z-50"
           />
 
-          {/* Floating Action Bar centered above the midpoint */}
-          <div
-            data-control-bar="true"
-            onPointerDown={(e) => e.stopPropagation()}
-            style={{
-              position: 'absolute',
-              left: `${cx}px`,
-              top: `${cy - 36}px`,
-              transform: 'translateX(-50%)',
-            }}
-            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-white/95 dark:bg-[#262626]/95 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.12)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] z-50 animate-fade-in no-drag whitespace-nowrap"
-          >
-            <button
-              type="button"
-              onClick={toggleArrowHead}
-              title={`Arrowhead: ${arrowHeadPosition}. Click to toggle.`}
-              className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-black dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] transition cursor-pointer"
+          {/* Floating Action Bar centered above the midpoint (only for directly selected single arrow) */}
+          {isDirectlySelected && (
+            <div
+              data-control-bar="true"
+              onPointerDown={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute',
+                left: `${cx}px`,
+                top: `${cy - 36}px`,
+                transform: 'translateX(-50%)',
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-xl bg-white/95 dark:bg-[#262626]/95 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.12)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] z-50 animate-fade-in no-drag whitespace-nowrap"
             >
-              <ArrowLeftRight size={13} />
-              <span className="capitalize">{arrowHeadPosition}</span>
-            </button>
+              <button
+                type="button"
+                onClick={toggleArrowHead}
+                title={`Arrowhead: ${arrowHeadPosition}. Click to toggle.`}
+                className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-black dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] transition cursor-pointer"
+              >
+                <ArrowLeftRight size={13} />
+                <span className="capitalize">{arrowHeadPosition}</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={flipCurve}
-              title="Flip curve (upward / downward)"
-              className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-black dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] transition cursor-pointer"
-            >
-              <RotateCw size={13} />
-              <span>Flip Arch</span>
-            </button>
+              <button
+                type="button"
+                onClick={flipCurve}
+                title="Flip curve (upward / downward)"
+                className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-black dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] transition cursor-pointer"
+              >
+                <RotateCw size={13} />
+                <span>Flip Arch</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={handleDelete}
-              title="Delete arrow"
-              className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition cursor-pointer"
-            >
-              <Trash2 size={13} />
-              <span>Delete</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={handleDelete}
+                title="Delete arrow"
+                className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition cursor-pointer"
+              >
+                <Trash2 size={13} />
+                <span>Delete</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

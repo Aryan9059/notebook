@@ -35,7 +35,7 @@ export const useUiStore = create<UiStore>((set) => ({
   setSelectedIds: (ids) =>
     set({
       selectedIds: ids,
-      selectedId: ids.length === 1 ? ids[0] : (ids.length > 1 ? ids[0] : null),
+      selectedId: null,
     }),
   toggleSelectedId: (id) =>
     set((state) => {

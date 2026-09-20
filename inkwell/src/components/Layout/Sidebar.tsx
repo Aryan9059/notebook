@@ -11,7 +11,6 @@ import {
   Trash2,
   Notebook,
   Layers,
-  Folder,
   Check,
   ArrowLeft,
 } from 'lucide-react';
@@ -113,15 +112,15 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
 
   return (
     <>
-      {/* Floating PanelLeft toggle button when sidebar is collapsed */}
+      {/* Floating PanelLeft toggle button when sidebar is collapsed (matches FloatingToolbar height h-11) */}
       {!isSidebarOpen && (
         <button
           type="button"
           onClick={toggleSidebar}
           title="Open Sidebar"
-          className="absolute top-4 left-4 z-50 w-8 h-8 rounded-xl bg-white/90 hover:bg-white dark:bg-[#262626]/90 dark:hover:bg-[#2f2f2f] backdrop-blur-xl border border-black/[0.08] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] text-gray-700 dark:text-gray-200 flex items-center justify-center cursor-pointer transition-all duration-150 no-drag hover:scale-105 active:scale-95"
+          className="absolute top-4 left-4 z-50 h-11 w-11 rounded-2xl bg-white/90 hover:bg-white dark:bg-[#262626]/95 dark:hover:bg-[#2f2f2f] backdrop-blur-2xl border border-black/[0.08] dark:border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)] text-gray-700 dark:text-gray-200 flex items-center justify-center cursor-pointer transition-all duration-150 no-drag hover:scale-105 active:scale-95 shrink-0"
         >
-          <PanelLeft size={15} />
+          <PanelLeft size={16} />
         </button>
       )}
 
@@ -138,9 +137,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="h-8 px-2.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-800 dark:text-gray-200 text-xs font-medium flex items-center gap-2 transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06] max-w-full"
+                className="w-full h-11 px-3 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-800 dark:text-gray-200 text-xs font-medium flex items-center gap-2 transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06]"
               >
-                <Notebook size={15} strokeWidth={2} className="text-gray-700 dark:text-gray-200 shrink-0" />
+                <img src="/logo.png" alt="Inkwell" className="w-5 h-5 object-contain rounded shrink-0" />
                 <div className="flex items-center min-w-0 text-left flex-1">
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-xs truncate">
                     {activeNotebook?.name ?? 'Notebook'}
@@ -165,7 +164,7 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                             setActiveNotebook(nb.id);
                             setIsDropdownOpen(false);
                           }}
-                          className={`w-full px-2.5 py-1.5 rounded-lg text-left flex items-center justify-between group transition-colors cursor-pointer ${
+                          className={`w-full h-11 px-2.5 rounded-lg text-left flex items-center justify-between group transition-colors cursor-pointer ${
                             isActive
                               ? 'bg-black/[0.05] dark:bg-white/[0.1] text-black dark:text-white font-semibold'
                               : 'text-gray-700 dark:text-gray-300 hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
@@ -183,7 +182,6 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                               </span>
                               <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
                                 {nb.sections.length} {nb.sections.length === 1 ? 'section' : 'sections'}
-                                {nb.folderPath ? ` • 📁 ${nb.folderPath.split('/').pop()}` : ''}
                               </span>
                             </div>
                           </div>
@@ -217,33 +215,15 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                   </div>
 
                   <div className="border-t border-black/[0.06] dark:border-white/[0.08] pt-1 mt-1 space-y-0.5">
-                    {activeNotebook?.folderPath && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setIsDropdownOpen(false);
-                          try {
-                            const { openPath } = await import('@tauri-apps/plugin-opener');
-                            await openPath(activeNotebook.folderPath!);
-                          } catch (err) {
-                            console.error('Failed to open folder:', err);
-                          }
-                        }}
-                        className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-medium transition-colors"
-                      >
-                        <Folder size={13} className="text-gray-500 dark:text-gray-400 shrink-0" />
-                        <span className="truncate">Reveal in Finder</span>
-                      </button>
-                    )}
                     <button
                       type="button"
                       onClick={() => {
                         setIsDropdownOpen(false);
                         onNewNotebookClick?.();
                       }}
-                      className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-medium transition-colors"
+                      className="w-full h-11 px-2.5 rounded-lg text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-medium transition-colors"
                     >
-                      <Plus size={13} className="text-gray-500 dark:text-gray-400 shrink-0" />
+                      <Plus size={14} className="text-gray-500 dark:text-gray-400 shrink-0" />
                       <span>New Notebook</span>
                     </button>
                     <button
@@ -252,9 +232,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                         setIsDropdownOpen(false);
                         onGoToStartScreen?.();
                       }}
-                      className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-600 dark:text-gray-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer transition-colors"
+                      className="w-full h-11 px-2.5 rounded-lg text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-medium transition-colors"
                     >
-                      <ArrowLeft size={13} className="text-gray-500 dark:text-gray-400 shrink-0" />
+                      <ArrowLeft size={14} className="text-gray-500 dark:text-gray-400 shrink-0" />
                       <span>All Notebooks</span>
                     </button>
                   </div>
@@ -267,9 +247,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
               type="button"
               onClick={toggleSidebar}
               title="Close Sidebar"
-              className="w-8 h-8 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-700 dark:text-gray-200 flex items-center justify-center transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06] shrink-0"
+              className="w-11 h-11 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-700 dark:text-gray-200 flex items-center justify-center transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06] shrink-0"
             >
-              <PanelLeft size={15} />
+              <PanelLeft size={16} />
             </button>
           </div>
 
@@ -294,15 +274,15 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                   key={sec.id}
                   onClick={() => setActiveSection(sec.id)}
                   onDoubleClick={() => handleStartRename(sec.id, sec.name)}
-                  className={`w-full h-8 rounded-xl px-2.5 flex items-center justify-between text-xs font-medium transition cursor-pointer select-none group relative ${
+                  className={`w-full h-11 rounded-xl px-3 flex items-center justify-between text-xs font-medium transition cursor-pointer select-none group relative ${
                     isActive
                       ? 'bg-white dark:bg-[#2F2F2F] text-gray-900 dark:text-gray-100 font-medium shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)] border border-black/[0.04] dark:border-white/[0.08]'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
                   }`}
                 >
-                  <div className="flex items-center gap-2 min-w-0 flex-1 mr-1.5">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-1.5">
                     <Layers
-                      size={13}
+                      size={14}
                       className={isActive ? 'text-black dark:text-white shrink-0' : 'text-gray-400 dark:text-gray-500 shrink-0'}
                     />
                     {isRenaming ? (
@@ -350,9 +330,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
             <button
               type="button"
               onClick={handleAddSection}
-              className="w-full h-8 mt-2 rounded-xl border border-dashed border-gray-300/80 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/30 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer select-none hover:bg-white/50 dark:hover:bg-white/[0.04]"
+              className="w-full h-11 mt-2 rounded-xl border border-dashed border-gray-300/80 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/30 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-xs font-medium flex items-center justify-center gap-2 transition cursor-pointer select-none hover:bg-white/50 dark:hover:bg-white/[0.04]"
             >
-              <Plus size={13} />
+              <Plus size={14} />
               <span>Add Section</span>
             </button>
           </div>

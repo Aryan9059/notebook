@@ -1,5 +1,5 @@
 import { FC, useState } from 'react';
-import { Plus, FolderOpen, Notebook, Clock, Sparkles, Trash2 } from 'lucide-react';
+import { Plus, FolderOpen, Notebook, Clock, Trash2 } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { CreateNotebookDialog } from './CreateNotebookDialog';
 import { ConfirmDialog } from '../Common/ConfirmDialog';
@@ -83,9 +83,11 @@ export const StartScreen: FC = () => {
         {/* Header Branding */}
         <div className="flex items-center justify-between mb-8 pb-6 border-b border-black/[0.06] dark:border-white/[0.08]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shadow-md">
-              <Sparkles size={18} strokeWidth={2} />
-            </div>
+            <img
+              src="/logo.png"
+              alt="Inkwell"
+              className="w-9 h-9 rounded-xl object-contain shadow-md shrink-0"
+            />
             <div>
               <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100 leading-none">
                 Inkwell
@@ -206,7 +208,7 @@ export const StartScreen: FC = () => {
       <CreateNotebookDialog
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        onCreate={(name, folderPath) => createNotebook(name, folderPath)}
+        onCreate={(name) => createNotebook(name)}
       />
 
       {/* Confirmation Dialog for Deleting Notebook from Start Screen */}

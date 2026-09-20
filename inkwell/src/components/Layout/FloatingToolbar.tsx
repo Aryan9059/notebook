@@ -11,7 +11,6 @@ import {
   MoreVertical,
   Type,
   Download,
-  FileText,
   RotateCcw,
   Trash2,
   Paperclip,
@@ -67,10 +66,6 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
 
   const theme = useThemeStore((state) => state.theme);
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
-
-  const activeNotebook = useNotesStore((state) =>
-    state.notebooks.find((n) => n.id === state.activeNotebookId)
-  );
 
   const activeSection = useNotesStore((state) => {
     const nb = state.notebooks.find((n) => n.id === state.activeNotebookId);
@@ -162,15 +157,25 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
   };
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-2xl bg-white/90 dark:bg-[#262626]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.1] shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)] px-2.5 py-1.5 select-none no-drag transition-colors">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 h-11 flex items-center gap-2 rounded-2xl bg-white/90 dark:bg-[#262626]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.1] shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)] px-2.5 py-1.5 select-none no-drag transition-colors max-w-[calc(100vw-2rem)]">
+      {/* App Logo branding */}
+      <div className="flex items-center gap-1.5 pl-1 pr-0.5 shrink-0" title="Inkwell">
+        <img
+          src="/logo.png"
+          alt="Inkwell"
+          className="w-5 h-5 object-contain rounded shrink-0"
+        />
+      </div>
+      <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
+
       {/* Add PDF button */}
       <button
         type="button"
         onClick={onAddPdfClick}
-        className="h-8 px-3.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-800 dark:text-gray-200 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06]"
+        className="h-8 px-3 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-800 dark:text-gray-200 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06] shrink-0 whitespace-nowrap"
       >
-        <FileUp size={14} className="text-gray-900 dark:text-gray-100" />
-        <span>Add pdf</span>
+        <FileUp size={14} className="text-gray-900 dark:text-gray-100 shrink-0" />
+        <span className="whitespace-nowrap">Add pdf</span>
       </button>
 
       {/* Attachment button for Images */}
@@ -178,13 +183,13 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
         type="button"
         onClick={onAddImageClick}
         title="Add image attachment"
-        className="w-8 h-8 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-700 dark:text-gray-200 flex items-center justify-center transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06]"
+        className="w-8 h-8 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-700 dark:text-gray-200 flex items-center justify-center transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06] shrink-0"
       >
         <Paperclip size={15} />
       </button>
 
       {/* Hand / Select / Arrow tool segmented toggle */}
-      <div className="flex items-center p-0.5 rounded-xl bg-gray-100/90 dark:bg-[#333333] border border-black/[0.04] dark:border-white/[0.06] h-8">
+      <div className="flex items-center p-0.5 rounded-xl bg-gray-100/90 dark:bg-[#333333] border border-black/[0.04] dark:border-white/[0.06] h-8 shrink-0">
         <button
           type="button"
           onClick={() => setActiveTool('hand')}
@@ -230,7 +235,7 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
       </div>
 
       {/* Segmented font controls */}
-      <div className="flex items-center rounded-xl bg-gray-100/90 dark:bg-[#333333] border border-black/[0.04] dark:border-white/[0.06] h-8 px-1">
+      <div className="flex items-center rounded-xl bg-gray-100/90 dark:bg-[#333333] border border-black/[0.04] dark:border-white/[0.06] h-8 px-1 shrink-0">
         {/* Font Family selector */}
         <div className="relative flex items-center">
           <Type size={13} className="text-gray-400 dark:text-gray-400 ml-1.5 shrink-0" />
@@ -379,7 +384,7 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
       </div>
 
       {/* More / Overflow menu */}
-      <div ref={menuRef} className="relative flex items-center">
+      <div ref={menuRef} className="relative flex items-center shrink-0">
         <button
           type="button"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -425,22 +430,6 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
               <div className="flex items-center gap-2">
                 <Download size={14} className="text-gray-500 dark:text-gray-400" />
                 <span>Export as PDF</span>
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                setIsMenuOpen(false);
-                if (activeNotebook) {
-                  const { exportNotebookBundle } = await import('../../utils/bundle');
-                  await exportNotebookBundle(activeNotebook);
-                }
-              }}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium"
-            >
-              <div className="flex items-center gap-2">
-                <FileText size={14} className="text-gray-500 dark:text-gray-400" />
-                <span>Export (.inkwell.json)</span>
               </div>
             </button>
             <button
