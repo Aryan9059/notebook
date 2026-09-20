@@ -59,13 +59,26 @@ export interface ImageElement extends BaseElement {
   isLocked: boolean;
 }
 
-export type CanvasElement = TextElement | PdfPageElement | ImageElement;
+export interface ArrowElement extends BaseElement {
+  type: 'arrow';
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  controlOffset?: number; // perpendicular curvature offset
+  color?: string;
+  strokeWidth?: number;
+  arrowHeadPosition?: 'start' | 'end' | 'both';
+}
 
-export type ToolMode = 'select' | 'hand';
+export type CanvasElement = TextElement | PdfPageElement | ImageElement | ArrowElement;
+
+export type ToolMode = 'select' | 'hand' | 'arrow';
 
 /** Transient — never persisted */
 export interface UiState {
   selectedId: string | null;
+  selectedIds: string[];
   editingId: string | null;
   isSidebarOpen: boolean;
   isImporting: boolean;

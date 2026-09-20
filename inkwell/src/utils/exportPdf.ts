@@ -21,13 +21,23 @@ export async function exportSectionToPdf(
   let maxY = -Infinity;
 
   for (const el of elements) {
-    const elWidth = el.width || 320;
-    const elHeight = el.type === 'pdf-page' ? el.height + 34 : el.height || 180;
-
-    minX = Math.min(minX, el.x);
-    minY = Math.min(minY, el.y);
-    maxX = Math.max(maxX, el.x + elWidth);
-    maxY = Math.max(maxY, el.y + elHeight);
+    if (el.type === 'arrow') {
+      const minArrowX = Math.min(el.startX, el.endX) - 30;
+      const maxArrowX = Math.max(el.startX, el.endX) + 30;
+      const minArrowY = Math.min(el.startY, el.endY) - 30;
+      const maxArrowY = Math.max(el.startY, el.endY) + 30;
+      minX = Math.min(minX, minArrowX);
+      minY = Math.min(minY, minArrowY);
+      maxX = Math.max(maxX, maxArrowX);
+      maxY = Math.max(maxY, maxArrowY);
+    } else {
+      const elWidth = el.width || 320;
+      const elHeight = el.type === 'pdf-page' ? el.height + 34 : el.height || 180;
+      minX = Math.min(minX, el.x);
+      minY = Math.min(minY, el.y);
+      maxX = Math.max(maxX, el.x + elWidth);
+      maxY = Math.max(maxY, el.y + elHeight);
+    }
   }
 
   const margin = 48;
@@ -51,14 +61,27 @@ export async function exportSectionToPdf(
     const domEl =
       document.getElementById(`card-${el.id}`) ||
       document.getElementById(`pdf-page-${el.id}`) ||
-      document.getElementById(`image-card-${el.id}`);
+      document.getElementById(`image-card-${el.id}`) ||
+      document.getElementById(`arrow-${el.id}`);
 
     if (domEl) {
       const cloned = domEl.cloneNode(true) as HTMLElement;
+      // Remove any interactive UI controls/handles from cloned node
+      const controls = cloned.querySelectorAll('[data-control-bar], [title*="Drag"], [title*="adjust"]');
+      controls.forEach((c) => c.remove());
+
       cloned.style.position = 'absolute';
       cloned.style.left = '0';
       cloned.style.top = '0';
-      cloned.style.transform = `translate(${el.x - bboxX}px, ${el.y - bboxY}px)`;
+      if (el.type === 'arrow') {
+        const leftVal = parseFloat(domEl.style.left || '0');
+        const topVal = parseFloat(domEl.style.top || '0');
+        cloned.style.left = `${leftVal - bboxX}px`;
+        cloned.style.top = `${topVal - bboxY}px`;
+        cloned.style.transform = 'none';
+      } else {
+        cloned.style.transform = `translate(${el.x - bboxX}px, ${el.y - bboxY}px)`;
+      }
       cloned.style.boxShadow = 'none'; // clean rendering for print
       offscreenContainer.appendChild(cloned);
     }

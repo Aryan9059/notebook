@@ -13,27 +13,16 @@ import { getPageImageUrl } from '../../store/imageStore';
 
 interface PdfPageCardProps {
   element: PdfPageElement;
+  onDoubleClickLocked?: (clientX: number, clientY: number) => void;
 }
 
-export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
+export const PdfPageCard: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked }) => {
   const cardRef = useRef<HTMLDivElement>(null);
-
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const selectedId = useUiStore((state) => state.selectedId);
-  const setSelectedId = useUiStore((state) => state.setSelectedId);
-  const activeTool = useUiStore((state) => state.activeTool);
-
-  const updateElement = useNotesStore((state) => state.updateElement);
-  const moveElement = useNotesStore((state) => state.moveElement);
-  const deleteElement = useNotesStore((state) => state.deleteElement);
-
-  const isSelected = selectedId === element.id;
-
-  const [localPos, setLocalPos] = useState({ x: element.x, y: element.y });
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
 
-  // Resize refs
+  // Resize interaction refs
   const isResizingRef = useRef(false);
   const resizeStartRef = useRef<{
     clientX: number;
@@ -45,6 +34,22 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
     handle: 'se' | 'sw';
   } | null>(null);
   const currentDimensionsRef = useRef({ width: element.width, height: element.height });
+
+  // Store actions
+  const moveElement = useNotesStore((state) => state.moveElement);
+  const updateElement = useNotesStore((state) => state.updateElement);
+  const deleteElement = useNotesStore((state) => state.deleteElement);
+
+  // UI state
+  const selectedId = useUiStore((state) => state.selectedId);
+  const selectedIds = useUiStore((state) => state.selectedIds);
+  const setSelectedId = useUiStore((state) => state.setSelectedId);
+  const activeTool = useUiStore((state) => state.activeTool);
+
+  const isSelected = selectedId === element.id || selectedIds.includes(element.id);
+
+  // Local position for fluid 60fps drag
+  const [localPos, setLocalPos] = useState({ x: element.x, y: element.y });
 
   useEffect(() => {
     if (!isDragging) {
@@ -62,6 +67,7 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
     }
   }, [element.width, element.height]);
 
+  // Fetch memoized object URL from IDB (§7)
   useEffect(() => {
     let isCancelled = false;
     getPageImageUrl(element.imageKey).then((url) => {
@@ -98,12 +104,13 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
         target.closest('[data-lock-badge]') ||
         target.closest('[data-resize-handle]')
       ) {
+        if (activeTool === 'arrow') return;
         e.stopPropagation();
         return;
       }
 
       if (element.isLocked) return;
-      if (activeTool === 'hand') return;
+      if (activeTool === 'hand' || activeTool === 'arrow') return;
       if (e.button !== 0) return;
 
       e.stopPropagation();
@@ -232,9 +239,17 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
-    if (!element.isLocked && activeTool !== 'hand') {
+    if (activeTool === 'arrow') return;
+    if (activeTool !== 'hand') {
       e.stopPropagation();
       setSelectedId(element.id);
+    }
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (element.isLocked && activeTool !== 'hand' && activeTool !== 'arrow') {
+      e.stopPropagation();
+      onDoubleClickLocked?.(e.clientX, e.clientY);
     }
   };
 
@@ -247,6 +262,7 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
       ref={cardRef}
       id={`pdf-page-${element.id}`}
       onClick={handleCardClick}
+      onDoubleClick={handleDoubleClick}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -285,23 +301,17 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
               type="button"
               onClick={handleToggleLock}
               onPointerDown={(e) => e.stopPropagation()}
-              title={element.isLocked ? 'Unlock Page' : 'Lock Page'}
-              className={`px-2 py-0.5 rounded-lg flex items-center gap-1 text-xs font-medium transition cursor-pointer ${
+              title={element.isLocked ? 'Unlock Page (currently locked)' : 'Lock Page'}
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
                 element.isLocked
-                  ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-black/[0.05]'
+                  ? 'bg-amber-100 text-amber-500 hover:bg-amber-200 ring-1 ring-amber-400/40 shadow-xs'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-black/[0.05]'
               }`}
             >
               {element.isLocked ? (
-                <>
-                  <Lock size={12} className="text-amber-700" />
-                  <span>Locked</span>
-                </>
+                <Lock size={13} className="text-amber-500 fill-amber-500/20" strokeWidth={2.5} />
               ) : (
-                <>
-                  <Unlock size={12} className="text-gray-500" />
-                  <span>Lock</span>
-                </>
+                <Unlock size={13} strokeWidth={2} />
               )}
             </button>
 
@@ -311,28 +321,12 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
               onClick={handleDelete}
               onPointerDown={(e) => e.stopPropagation()}
               title="Delete Page"
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
             >
-              <Trash2 size={12} />
+              <Trash2 size={13} />
             </button>
           </div>
         </div>
-      )}
-
-      {/* Interactive Locked Badge in top-right corner when locked */}
-      {element.isLocked && (
-        <button
-          type="button"
-          data-lock-badge="true"
-          onClick={handleToggleLock}
-          onPointerDown={(e) => e.stopPropagation()}
-          title="Page is locked. Click to unlock."
-          className="absolute top-2.5 right-2.5 z-30 px-2.5 py-1 rounded-lg bg-black/80 hover:bg-black text-white text-[11px] font-medium flex items-center gap-1.5 shadow-md backdrop-blur-md cursor-pointer transition-all hover:scale-105 active:scale-95 border border-white/10"
-          style={{ pointerEvents: 'auto' }}
-        >
-          <Lock size={12} className="text-amber-400" />
-          <span>Locked</span>
-        </button>
       )}
 
       {/* Page image layer: §9.3 - when isLocked, pointer-events: none */}

@@ -16,7 +16,7 @@ import {
   getDotGridStyle,
   screenToCanvas,
 } from '../../utils/canvasMath';
-import { Viewport } from '../../types';
+import { Viewport, ArrowElement } from '../../types';
 import { WorldLayer } from './WorldLayer';
 
 interface CanvasProps {
@@ -33,6 +33,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     return nb?.sections.find((s) => s.id === state.activeSectionId);
   });
 
+  const addElement = useNotesStore((state) => state.addElement);
   const setViewport = useNotesStore((state) => state.setViewport);
   const resetViewport = useNotesStore((state) => state.resetViewport);
   const zoomIn = useNotesStore((state) => state.zoomIn);
@@ -40,12 +41,16 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
   const undo = useNotesStore((state) => state.undo);
   const redo = useNotesStore((state) => state.redo);
   const deleteElement = useNotesStore((state) => state.deleteElement);
+  const deleteElements = useNotesStore((state) => state.deleteElements);
 
   // UI state
   const selectedId = useUiStore((state) => state.selectedId);
+  const selectedIds = useUiStore((state) => state.selectedIds);
   const editingId = useUiStore((state) => state.editingId);
   const activeTool = useUiStore((state) => state.activeTool);
   const setSelectedId = useUiStore((state) => state.setSelectedId);
+  const setSelectedIds = useUiStore((state) => state.setSelectedIds);
+  const clearSelection = useUiStore((state) => state.clearSelection);
   const setEditingId = useUiStore((state) => state.setEditingId);
   const setActiveTool = useUiStore((state) => state.setActiveTool);
 
@@ -59,12 +64,92 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const panStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
 
+  // Marquee (Drag-to-select rectangle) State
+  const [marqueeBox, setMarqueeBox] = useState<{
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+  } | null>(null);
+  const marqueeBoxRef = useRef(marqueeBox);
+  marqueeBoxRef.current = marqueeBox;
+  const isMarqueeDraggingRef = useRef(false);
+  const justFinishedMarqueeRef = useRef(false);
+
   // Track mouse coordinates for anchor zoom
   const mousePosRef = useRef({
     clientX: typeof window !== 'undefined' ? window.innerWidth / 2 : 0,
     clientY: typeof window !== 'undefined' ? window.innerHeight / 2 : 0,
   });
   const isGesturingRef = useRef(false);
+
+  // Curved Arrow Drafting State
+  const [arrowDraft, setArrowDraft] = useState<{
+    startX: number;
+    startY: number;
+    currentX: number;
+    currentY: number;
+    isFlipped: boolean;
+  } | null>(null);
+  const arrowDraftRef = useRef(arrowDraft);
+  arrowDraftRef.current = arrowDraft;
+  const arrowPointerDownTimeRef = useRef<number>(0);
+  const justCommittedArrowRef = useRef(false);
+
+  useEffect(() => {
+    if (activeTool !== 'arrow') {
+      setArrowDraft(null);
+      arrowDraftRef.current = null;
+    }
+  }, [activeTool]);
+
+  // Listen for toolbar trigger to flip arrow curve during draft
+  useEffect(() => {
+    const handleFlipEvent = () => {
+      if (arrowDraftRef.current) {
+        const nextFlipped = !arrowDraftRef.current.isFlipped;
+        arrowDraftRef.current = {
+          ...arrowDraftRef.current,
+          isFlipped: nextFlipped,
+        };
+        setArrowDraft((prev) => (prev ? { ...prev, isFlipped: nextFlipped } : null));
+      }
+    };
+    window.addEventListener('inkwell-flip-arrow-draft', handleFlipEvent);
+    return () => window.removeEventListener('inkwell-flip-arrow-draft', handleFlipEvent);
+  }, []);
+
+  const commitArrow = useCallback(
+    (startX: number, startY: number, endX: number, endY: number, isFlipped = false) => {
+      const dist = Math.hypot(endX - startX, endY - startY);
+      const flip = isFlipped ? -1 : 1;
+      const baseH = Math.min(60, Math.max(25, dist * 0.22));
+
+      const newArrow: ArrowElement = {
+        id: crypto.randomUUID(),
+        type: 'arrow',
+        x: Math.min(startX, endX),
+        y: Math.min(startY, endY),
+        startX,
+        startY,
+        endX,
+        endY,
+        controlOffset: flip * baseH,
+        color: '#000000',
+        strokeWidth: 2.5,
+        arrowHeadPosition: 'start', // Arrowhead at first clicked point
+        zIndex: 500,
+      };
+
+      addElement(newArrow);
+      setSelectedId(newArrow.id);
+      justCommittedArrowRef.current = true;
+      arrowDraftRef.current = null;
+      setArrowDraft(null);
+      setActiveTool('select');
+    },
+    [addElement, setSelectedId, setActiveTool]
+  );
 
   // Non-passive wheel & native WebKit gesture handler for trackpad pinch zoom & pan
   useEffect(() => {
@@ -208,7 +293,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         setIsSpacePressed(true);
       }
 
-      // Quick tool toggle shortcuts: H = Hand tool, V = Select tool
+      // Quick tool toggle shortcuts: H = Hand tool, V = Select tool, A = Arrow tool
       if (!isInput && !e.metaKey && !e.ctrlKey && !e.altKey) {
         const k = e.key.toLowerCase();
         if (k === 'h' || e.code === 'KeyH') {
@@ -217,6 +302,19 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         } else if (k === 'v' || e.code === 'KeyV') {
           e.preventDefault();
           setActiveTool('select');
+        } else if (k === 'a' || e.code === 'KeyA') {
+          e.preventDefault();
+          if (activeTool === 'arrow' && arrowDraftRef.current) {
+            // Already drafting: flip between upward and downward curve!
+            const nextFlipped = !arrowDraftRef.current.isFlipped;
+            arrowDraftRef.current = {
+              ...arrowDraftRef.current,
+              isFlipped: nextFlipped,
+            };
+            setArrowDraft((prev) => (prev ? { ...prev, isFlipped: nextFlipped } : null));
+          } else {
+            setActiveTool('arrow');
+          }
         }
       }
 
@@ -239,20 +337,35 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         resetViewport();
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        if (editingId) {
+        if (arrowDraftRef.current) {
+          arrowDraftRef.current = null;
+          setArrowDraft(null);
+        } else if (marqueeBoxRef.current) {
+          isMarqueeDraggingRef.current = false;
+          marqueeBoxRef.current = null;
+          setMarqueeBox(null);
+        } else if (editingId) {
           setEditingId(null);
-        } else if (selectedId) {
-          setSelectedId(null);
+        } else if (selectedId || selectedIds.length > 0) {
+          clearSelection();
         }
       } else if (
         (e.key === 'Backspace' || e.key === 'Delete') &&
-        selectedId &&
+        (selectedId || selectedIds.length > 0) &&
         !editingId &&
         !isInput
       ) {
         e.preventDefault();
-        deleteElement(selectedId);
-        setSelectedId(null);
+        const idsToDelete = Array.from(
+          new Set([
+            ...(selectedId ? [selectedId] : []),
+            ...selectedIds,
+          ])
+        );
+        if (idsToDelete.length > 0) {
+          deleteElements(idsToDelete);
+          clearSelection();
+        }
       }
     };
 
@@ -271,9 +384,12 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
   }, [
     editingId,
     selectedId,
+    selectedIds,
     setEditingId,
     setSelectedId,
+    clearSelection,
     deleteElement,
+    deleteElements,
     resetViewport,
     zoomIn,
     zoomOut,
@@ -282,9 +398,43 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     redo,
   ]);
 
-  // Pointer-based pan (Hand tool, Space+drag, or middle-click drag)
+  // Pointer-based pan (Hand tool, Space+drag, or middle-click drag) or Arrow drafting
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      // Arrow tool handling:
+      if (activeTool === 'arrow' && e.button === 0) {
+        e.preventDefault();
+        const container = containerRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const coords = screenToCanvas(e.clientX, e.clientY, viewportRef.current, rect);
+
+        if (!arrowDraftRef.current) {
+          // Point 1: start draft
+          arrowPointerDownTimeRef.current = Date.now();
+          const initialDraft = {
+            startX: coords.x,
+            startY: coords.y,
+            currentX: coords.x,
+            currentY: coords.y,
+            isFlipped: false,
+          };
+          arrowDraftRef.current = initialDraft;
+          setArrowDraft(initialDraft);
+        } else {
+          // Point 2: commit arrow in the current flipped/unflipped state
+          const draft = arrowDraftRef.current;
+          const dist = Math.hypot(coords.x - draft.startX, coords.y - draft.startY);
+          if (dist > 8) {
+            commitArrow(draft.startX, draft.startY, coords.x, coords.y, draft.isFlipped);
+          } else {
+            arrowDraftRef.current = null;
+            setArrowDraft(null);
+          }
+        }
+        return;
+      }
+
       const isMiddleClick = e.button === 1;
       const isSpaceDrag = isSpacePressed && e.button === 0;
       const isHandToolDrag = activeTool === 'hand' && e.button === 0;
@@ -299,13 +449,117 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
           startX: viewportRef.current.x,
           startY: viewportRef.current.y,
         };
+        return;
+      }
+
+      // Marquee box selection (Select tool + Left click on empty canvas)
+      if (activeTool === 'select' && e.button === 0) {
+        const container = containerRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const coords = screenToCanvas(e.clientX, e.clientY, viewportRef.current, rect);
+
+        isMarqueeDraggingRef.current = true;
+        const initialBox = {
+          startX: coords.x,
+          startY: coords.y,
+          currentX: coords.x,
+          currentY: coords.y,
+        };
+        marqueeBoxRef.current = initialBox;
+        setMarqueeBox(initialBox);
+        e.currentTarget.setPointerCapture(e.pointerId);
+
+        if (!e.shiftKey) {
+          clearSelection();
+        }
       }
     },
-    [isSpacePressed, activeTool]
+    [isSpacePressed, activeTool, commitArrow, clearSelection]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
+      if (activeTool === 'arrow' && arrowDraftRef.current) {
+        const container = containerRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const coords = screenToCanvas(e.clientX, e.clientY, viewportRef.current, rect);
+        arrowDraftRef.current = {
+          ...arrowDraftRef.current,
+          currentX: coords.x,
+          currentY: coords.y,
+        };
+        setArrowDraft((prev) =>
+          prev ? { ...prev, currentX: coords.x, currentY: coords.y } : null
+        );
+        return;
+      }
+
+      // Marquee drag selection move
+      if (isMarqueeDraggingRef.current && marqueeBoxRef.current) {
+        const container = containerRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const coords = screenToCanvas(e.clientX, e.clientY, viewportRef.current, rect);
+
+        const updatedBox = {
+          ...marqueeBoxRef.current,
+          currentX: coords.x,
+          currentY: coords.y,
+        };
+        marqueeBoxRef.current = updatedBox;
+        setMarqueeBox(updatedBox);
+
+        // Calculate marquee bounding box in canvas space
+        const boxMinX = Math.min(updatedBox.startX, updatedBox.currentX);
+        const boxMaxX = Math.max(updatedBox.startX, updatedBox.currentX);
+        const boxMinY = Math.min(updatedBox.startY, updatedBox.currentY);
+        const boxMaxY = Math.max(updatedBox.startY, updatedBox.currentY);
+
+        const dragDist = Math.hypot(
+          updatedBox.currentX - updatedBox.startX,
+          updatedBox.currentY - updatedBox.startY
+        );
+
+        if (dragDist > 3 && activeSection) {
+          const matchedIds: string[] = [];
+          for (const el of activeSection.elements) {
+            let elMinX = el.x;
+            let elMaxX = el.x + (('width' in el && typeof el.width === 'number') ? el.width : 200);
+            let elMinY = el.y;
+            let elMaxY = el.y + (('height' in el && typeof el.height === 'number' && el.height !== null) ? el.height : 60);
+
+            if (el.type === 'arrow') {
+              const chordMinX = Math.min(el.startX, el.endX);
+              const chordMaxX = Math.max(el.startX, el.endX);
+              const chordMinY = Math.min(el.startY, el.endY);
+              const chordMaxY = Math.max(el.startY, el.endY);
+              const offset = Math.abs(el.controlOffset ?? 30);
+              elMinX = chordMinX - offset;
+              elMaxX = chordMaxX + offset;
+              elMinY = chordMinY - offset;
+              elMaxY = chordMaxY + offset;
+            }
+
+            // AABB intersection check: overlap exists if NOT completely outside
+            const intersects = !(
+              elMaxX < boxMinX ||
+              elMinX > boxMaxX ||
+              elMaxY < boxMinY ||
+              elMinY > boxMaxY
+            );
+
+            if (intersects) {
+              matchedIds.push(el.id);
+            }
+          }
+
+          setSelectedIds(matchedIds);
+        }
+        return;
+      }
+
       if (!isPanning || !panStartRef.current) return;
       const dx = e.clientX - panStartRef.current.clientX;
       const dy = e.clientY - panStartRef.current.clientY;
@@ -314,11 +568,45 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         y: panStartRef.current.startY + dy,
       });
     },
-    [isPanning, setViewport]
+    [activeTool, isPanning, setViewport, activeSection, setSelectedIds]
   );
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
+      if (activeTool === 'arrow' && arrowDraftRef.current) {
+        const duration = Date.now() - arrowPointerDownTimeRef.current;
+        const container = containerRef.current;
+        if (container) {
+          const rect = container.getBoundingClientRect();
+          const coords = screenToCanvas(e.clientX, e.clientY, viewportRef.current, rect);
+          const draft = arrowDraftRef.current;
+          const dist = Math.hypot(coords.x - draft.startX, coords.y - draft.startY);
+          // Drag-and-release workflow (if user clicked & dragged without releasing)
+          if (duration > 160 && dist > 15) {
+            commitArrow(draft.startX, draft.startY, coords.x, coords.y, draft.isFlipped);
+            return;
+          }
+        }
+      }
+
+      if (isMarqueeDraggingRef.current) {
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        } catch {}
+        if (marqueeBoxRef.current) {
+          const dist = Math.hypot(
+            marqueeBoxRef.current.currentX - marqueeBoxRef.current.startX,
+            marqueeBoxRef.current.currentY - marqueeBoxRef.current.startY
+          );
+          if (dist > 5) {
+            justFinishedMarqueeRef.current = true;
+          }
+        }
+        isMarqueeDraggingRef.current = false;
+        marqueeBoxRef.current = null;
+        setMarqueeBox(null);
+      }
+
       if (isPanning) {
         try {
           e.currentTarget.releasePointerCapture(e.pointerId);
@@ -329,20 +617,29 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         panStartRef.current = null;
       }
     },
-    [isPanning]
+    [activeTool, isPanning, commitArrow]
   );
 
   // Click empty canvas: deselect and exit edit mode
   const handleCanvasClick = (e: React.MouseEvent) => {
+    if (justCommittedArrowRef.current) {
+      justCommittedArrowRef.current = false;
+      return;
+    }
+    if (justFinishedMarqueeRef.current) {
+      justFinishedMarqueeRef.current = false;
+      return;
+    }
+    if (activeTool === 'arrow') return;
     if (e.target === containerRef.current || (e.target as HTMLElement).id === 'canvas-world-layer') {
-      setSelectedId(null);
+      clearSelection();
       setEditingId(null);
     }
   };
 
   // Double click empty canvas: invoke callback with canvas-space coordinates (only in select mode)
   const handleDoubleClick = (e: React.MouseEvent) => {
-    if (activeTool === 'hand') return;
+    if (activeTool === 'hand' || activeTool === 'arrow') return;
 
     if (
       e.target === containerRef.current ||
@@ -363,8 +660,9 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     ? 'cursor-grab'
     : isSpacePressed
     ? 'cursor-grab'
+    : activeTool === 'arrow'
+    ? 'cursor-crosshair'
     : 'cursor-default';
-
 
   return (
     <div
@@ -385,6 +683,77 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     >
       <WorldLayer viewport={viewport}>
         {children}
+        {arrowDraft && (() => {
+          const { startX, startY, currentX, currentY, isFlipped } = arrowDraft;
+          const dx = currentX - startX;
+          const dy = currentY - startY;
+          const dist = Math.hypot(dx, dy);
+          const safeDist = Math.max(dist, 1);
+
+          const nx = -dy / safeDist;
+          const ny = dx / safeDist;
+          const baseH = Math.min(60, Math.max(25, dist * 0.22));
+          const flip = isFlipped ? -1 : 1;
+          const h = flip * baseH;
+          const cx = (startX + currentX) / 2 + nx * h;
+          const cy = (startY + currentY) / 2 + ny * h;
+
+          const thetaStart = Math.atan2(cy - startY, cx - startX);
+          const headLen = 15;
+          const headWidth = 8;
+          const startAngle = thetaStart + Math.PI;
+
+          const startTipX = startX;
+          const startTipY = startY;
+          const startLeftX = startTipX - headLen * Math.cos(startAngle) + headWidth * Math.sin(startAngle);
+          const startLeftY = startTipY - headLen * Math.sin(startAngle) - headWidth * Math.cos(startAngle);
+          const startRightX = startTipX - headLen * Math.cos(startAngle) - headWidth * Math.sin(startAngle);
+          const startRightY = startTipY - headLen * Math.sin(startAngle) + headWidth * Math.cos(startAngle);
+
+          return (
+            <svg
+              className="overflow-visible pointer-events-none"
+              style={{ position: 'absolute', top: 0, left: 0, zIndex: 9999 }}
+            >
+              {/* Stretching curved shaft */}
+              <path
+                d={`M ${startX} ${startY} Q ${cx} ${cy} ${currentX} ${currentY}`}
+                fill="none"
+                stroke="#000000"
+                strokeWidth={2.5}
+                strokeLinecap="round"
+              />
+              {/* Arrowhead at Start point */}
+              <polygon
+                points={`${startTipX},${startTipY} ${startLeftX},${startLeftY} ${startRightX},${startRightY}`}
+                fill="#000000"
+              />
+              {/* Subtle endpoint guide circle */}
+              <circle cx={currentX} cy={currentY} r={3.5} fill="#000000" fillOpacity={0.7} />
+            </svg>
+          );
+        })()}
+
+        {/* Marquee Selection Box (Figma Style) */}
+        {marqueeBox && (() => {
+          const x = Math.min(marqueeBox.startX, marqueeBox.currentX);
+          const y = Math.min(marqueeBox.startY, marqueeBox.currentY);
+          const width = Math.abs(marqueeBox.currentX - marqueeBox.startX);
+          const height = Math.abs(marqueeBox.currentY - marqueeBox.startY);
+          if (width < 2 && height < 2) return null;
+          return (
+            <div
+              className="absolute pointer-events-none rounded-sm border border-blue-500/80 bg-blue-500/15 shadow-[0_0_0_1px_rgba(59,130,246,0.1)]"
+              style={{
+                left: `${x}px`,
+                top: `${y}px`,
+                width: `${width}px`,
+                height: `${height}px`,
+                zIndex: 9998,
+              }}
+            />
+          );
+        })()}
       </WorldLayer>
     </div>
   );

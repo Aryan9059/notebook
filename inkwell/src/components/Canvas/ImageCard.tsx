@@ -13,9 +13,10 @@ import { getPageImageUrl } from '../../store/imageStore';
 
 interface ImageCardProps {
   element: ImageElement;
+  onDoubleClickLocked?: (clientX: number, clientY: number) => void;
 }
 
-export const ImageCard: FC<ImageCardProps> = ({ element }) => {
+export const ImageCard: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
@@ -26,10 +27,11 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
 
   // UI state
   const selectedId = useUiStore((state) => state.selectedId);
+  const selectedIds = useUiStore((state) => state.selectedIds);
   const setSelectedId = useUiStore((state) => state.setSelectedId);
   const activeTool = useUiStore((state) => state.activeTool);
 
-  const isSelected = selectedId === element.id;
+  const isSelected = selectedId === element.id || selectedIds.includes(element.id);
 
   // Drag interaction refs
   const isDraggingRef = useRef(false);
@@ -81,12 +83,13 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
         target.closest('[data-lock-badge]') ||
         target.closest('[data-resize-handle]')
       ) {
+        if (activeTool === 'arrow') return;
         e.stopPropagation();
         return;
       }
 
       if (element.isLocked) return;
-      if (activeTool === 'hand') return; // Hand tool handles canvas panning instead
+      if (activeTool === 'hand' || activeTool === 'arrow') return;
 
       e.stopPropagation();
       e.currentTarget.setPointerCapture(e.pointerId);
@@ -246,9 +249,16 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
       id={`image-card-${element.id}`}
       data-element-id={element.id}
       onClick={(e) => {
-        if (activeTool !== 'hand' && !element.isLocked) {
+        if (activeTool === 'arrow') return;
+        if (activeTool !== 'hand') {
           e.stopPropagation();
           setSelectedId(element.id);
+        }
+      }}
+      onDoubleClick={(e) => {
+        if (element.isLocked && activeTool !== 'hand' && activeTool !== 'arrow') {
+          e.stopPropagation();
+          onDoubleClickLocked?.(e.clientX, e.clientY);
         }
       }}
       onPointerDown={handlePointerDown}
@@ -289,23 +299,17 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
               type="button"
               onClick={toggleLock}
               onPointerDown={(e) => e.stopPropagation()}
-              title={element.isLocked ? 'Unlock Image' : 'Lock Image'}
-              className={`px-2 py-0.5 rounded-lg flex items-center gap-1 text-xs font-medium transition cursor-pointer ${
+              title={element.isLocked ? 'Unlock Image (currently locked)' : 'Lock Image'}
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
                 element.isLocked
-                  ? 'bg-amber-100 text-amber-900 hover:bg-amber-200'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-black/[0.05]'
+                  ? 'bg-amber-100 text-amber-500 hover:bg-amber-200 ring-1 ring-amber-400/40 shadow-xs'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-black/[0.05]'
               }`}
             >
               {element.isLocked ? (
-                <>
-                  <Lock size={12} className="text-amber-700" />
-                  <span>Locked</span>
-                </>
+                <Lock size={13} className="text-amber-500 fill-amber-500/20" strokeWidth={2.5} />
               ) : (
-                <>
-                  <Unlock size={12} className="text-gray-500" />
-                  <span>Lock</span>
-                </>
+                <Unlock size={13} strokeWidth={2} />
               )}
             </button>
 
@@ -315,28 +319,12 @@ export const ImageCard: FC<ImageCardProps> = ({ element }) => {
               onClick={handleDelete}
               onPointerDown={(e) => e.stopPropagation()}
               title="Delete Image"
-              className="w-6 h-6 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
             >
-              <Trash2 size={12} />
+              <Trash2 size={13} />
             </button>
           </div>
         </div>
-      )}
-
-      {/* Interactive Locked Badge in top-right corner when locked */}
-      {element.isLocked && (
-        <button
-          type="button"
-          data-lock-badge="true"
-          onClick={toggleLock}
-          onPointerDown={(e) => e.stopPropagation()}
-          title="Image is locked. Click to unlock."
-          className="absolute top-2.5 right-2.5 z-30 px-2.5 py-1 rounded-lg bg-black/80 hover:bg-black text-white text-[11px] font-medium flex items-center gap-1.5 shadow-md backdrop-blur-md cursor-pointer transition-all hover:scale-105 active:scale-95 border border-white/10"
-          style={{ pointerEvents: 'auto' }}
-        >
-          <Lock size={12} className="text-amber-400" />
-          <span>Locked</span>
-        </button>
       )}
 
       {/* Image Content */}

@@ -10,8 +10,10 @@ import { FloatingToolbar } from './components/Layout/FloatingToolbar';
 import { TextCard } from './components/Canvas/TextCard';
 import { PdfPageCard } from './components/Canvas/PdfPageCard';
 import { ImageCard } from './components/Canvas/ImageCard';
+import { ArrowCard } from './components/Canvas/ArrowCard';
 import { processPdfFile } from './utils/pdfProcessor';
 import { exportSectionToPdf } from './utils/exportPdf';
+import { screenToCanvas } from './utils/canvasMath';
 import { ImageElement, TextElement } from './types';
 
 export default function App() {
@@ -411,10 +413,37 @@ export default function App() {
               return <TextCard key={el.id} element={el} />;
             }
             if (el.type === 'pdf-page') {
-              return <PdfPageCard key={el.id} element={el} />;
+              return (
+                <PdfPageCard
+                  key={el.id}
+                  element={el}
+                  onDoubleClickLocked={(clientX, clientY) => {
+                    const rect = document.getElementById('infinite-canvas-container')?.getBoundingClientRect();
+                    if (rect && activeSection) {
+                      const coords = screenToCanvas(clientX, clientY, activeSection.viewport, rect);
+                      handleDoubleClickCanvas(coords.x, coords.y);
+                    }
+                  }}
+                />
+              );
             }
             if (el.type === 'image') {
-              return <ImageCard key={el.id} element={el} />;
+              return (
+                <ImageCard
+                  key={el.id}
+                  element={el}
+                  onDoubleClickLocked={(clientX, clientY) => {
+                    const rect = document.getElementById('infinite-canvas-container')?.getBoundingClientRect();
+                    if (rect && activeSection) {
+                      const coords = screenToCanvas(clientX, clientY, activeSection.viewport, rect);
+                      handleDoubleClickCanvas(coords.x, coords.y);
+                    }
+                  }}
+                />
+              );
+            }
+            if (el.type === 'arrow') {
+              return <ArrowCard key={el.id} element={el} />;
             }
             return null;
           })}

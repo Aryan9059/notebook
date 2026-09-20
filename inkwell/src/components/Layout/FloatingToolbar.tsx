@@ -17,6 +17,7 @@ import {
   Paperclip,
   Hand,
   MousePointer2,
+  CornerUpRight,
 } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
@@ -131,7 +132,7 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
         <Paperclip size={15} />
       </button>
 
-      {/* Hand / Select tool segmented toggle */}
+      {/* Hand / Select / Arrow tool segmented toggle */}
       <div className="flex items-center p-0.5 rounded-xl bg-gray-100/90 border border-black/[0.04] h-8">
         <button
           type="button"
@@ -156,6 +157,24 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
           }`}
         >
           <MousePointer2 size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (activeTool === 'arrow') {
+              window.dispatchEvent(new CustomEvent('inkwell-flip-arrow-draft'));
+            } else {
+              setActiveTool('arrow');
+            }
+          }}
+          title="Curved Arrow Tool — A (Press 'a' while drawing to flip curve)"
+          className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
+            activeTool === 'arrow'
+              ? 'bg-black text-white shadow-sm font-semibold'
+              : 'text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <CornerUpRight size={14} />
         </button>
       </div>
 

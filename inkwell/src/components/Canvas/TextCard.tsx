@@ -19,6 +19,7 @@ interface TextCardProps {
 export const TextCard: FC<TextCardProps> = ({ element }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const selectedId = useUiStore((state) => state.selectedId);
+  const selectedIds = useUiStore((state) => state.selectedIds);
   const editingId = useUiStore((state) => state.editingId);
   const setSelectedId = useUiStore((state) => state.setSelectedId);
   const setEditingId = useUiStore((state) => state.setEditingId);
@@ -28,7 +29,7 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
   const moveElement = useNotesStore((state) => state.moveElement);
   const deleteElement = useNotesStore((state) => state.deleteElement);
 
-  const isSelected = selectedId === element.id;
+  const isSelected = selectedId === element.id || selectedIds.includes(element.id);
   const isEditing = editingId === element.id;
 
   // Track position using refs for 120fps hardware-accelerated drag without React re-render lag
@@ -94,7 +95,7 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
 
   // Smooth drag handling
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (activeTool === 'hand') return;
+    if (activeTool === 'hand' || activeTool === 'arrow') return;
     e.stopPropagation();
     setSelectedId(element.id);
 
@@ -191,7 +192,7 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
   };
 
   const handleCardPointerDown = (e: React.PointerEvent) => {
-    if (activeTool === 'hand') return;
+    if (activeTool === 'hand' || activeTool === 'arrow') return;
     if (isEditing) return;
     e.stopPropagation();
     setSelectedId(element.id);

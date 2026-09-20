@@ -43,6 +43,7 @@ interface NotesState {
   updateElement: (id: string, patch: Partial<CanvasElement>, commitUndo?: boolean) => void;
   moveElement: (id: string, x: number, y: number, commitUndo?: boolean) => void;
   deleteElement: (id: string) => Promise<void>;
+  deleteElements: (ids: string[]) => Promise<void>;
   clearCanvas: () => Promise<void>;
 
   commitUndoSnapshot: () => void;
@@ -407,9 +408,9 @@ export const useNotesStore = create<NotesState>()(
         get().updateElement(id, { x, y } as Partial<CanvasElement>, commitUndo);
       },
 
-      deleteElement: async (id: string) => {
+      deleteElements: async (ids: string[]) => {
         const { activeNotebookId, activeSectionId, notebooks, undoStacks } = get();
-        if (!activeNotebookId || !activeSectionId) return;
+        if (!activeNotebookId || !activeSectionId || ids.length === 0) return;
 
         const currentSection = notebooks
           .find((nb) => nb.id === activeNotebookId)
@@ -417,9 +418,11 @@ export const useNotesStore = create<NotesState>()(
 
         if (!currentSection) return;
 
-        const target = currentSection.elements.find((el) => el.id === id);
-        if (target && (target.type === 'pdf-page' || target.type === 'image') && target.imageKey) {
-          await deletePageImage(target.imageKey);
+        const idSet = new Set(ids);
+        for (const el of currentSection.elements) {
+          if (idSet.has(el.id) && (el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
+            await deletePageImage(el.imageKey);
+          }
         }
 
         const currentStack = undoStacks[activeSectionId] || [];
@@ -437,7 +440,7 @@ export const useNotesStore = create<NotesState>()(
                     sec.id === activeSectionId
                       ? {
                           ...sec,
-                          elements: sec.elements.filter((el) => el.id !== id),
+                          elements: sec.elements.filter((el) => !idSet.has(el.id)),
                         }
                       : sec
                   ),
@@ -445,6 +448,10 @@ export const useNotesStore = create<NotesState>()(
               : nb
           ),
         }));
+      },
+
+      deleteElement: async (id: string) => {
+        await get().deleteElements([id]);
       },
 
       clearCanvas: async () => {
