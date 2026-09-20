@@ -285,11 +285,11 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
         <div
           data-control-bar="true"
           onPointerDown={(e) => e.stopPropagation()}
-          className="absolute -top-10 left-0 right-0 h-8 flex items-center justify-between px-2 rounded-xl bg-white/95 backdrop-blur-xl border border-black/[0.08] shadow-[0_4px_16px_rgba(0,0,0,0.1)] z-40 animate-fade-in"
+          className="absolute -top-10 left-0 right-0 h-8 flex items-center justify-between px-2 rounded-xl bg-white/95 dark:bg-[#262626]/95 backdrop-blur-xl border border-black/[0.08] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] z-40 animate-fade-in"
           style={{ pointerEvents: 'auto' }}
         >
           <div className="flex items-center gap-1.5 min-w-0 pr-2">
-            <span className="text-[11px] font-medium text-gray-700 truncate max-w-[140px]">
+            <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 truncate max-w-[140px]">
               {element.name || 'Image'}
             </span>
           </div>
@@ -304,7 +304,7 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
               className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
                 element.isLocked
                   ? 'bg-amber-100 text-amber-500 hover:bg-amber-200 ring-1 ring-amber-400/40 shadow-xs'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-black/[0.05]'
+                  : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/10'
               }`}
             >
               {element.isLocked ? (
@@ -320,7 +320,7 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
               onClick={handleDelete}
               onPointerDown={(e) => e.stopPropagation()}
               title="Delete Image"
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition cursor-pointer"
             >
               <Trash2 size={13} />
             </button>
@@ -330,7 +330,7 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
 
       {/* Image Content */}
       <div
-        className="w-full h-full rounded-2xl overflow-hidden bg-white/50 border border-black/[0.06] shadow-sm flex items-center justify-center"
+        className="w-full h-full rounded-2xl overflow-hidden bg-white/50 dark:bg-[#1e1e1e]/60 border border-black/[0.06] dark:border-white/10 shadow-sm flex items-center justify-center"
         style={{
           pointerEvents: element.isLocked ? 'none' : 'auto',
         }}

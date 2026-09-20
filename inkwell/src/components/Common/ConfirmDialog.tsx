@@ -43,17 +43,19 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-sm animate-fade-in p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 dark:bg-black/60 backdrop-blur-sm animate-fade-in p-4"
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-[320px] rounded-2xl bg-white/95 backdrop-blur-2xl border border-black/10 shadow-[0_24px_64px_rgba(0,0,0,0.22)] p-6 flex flex-col items-center text-center no-drag transition-all"
+        className="w-full max-w-[320px] rounded-2xl bg-white/95 dark:bg-[#262626]/98 backdrop-blur-2xl border border-black/10 dark:border-white/10 shadow-[0_24px_64px_rgba(0,0,0,0.22)] dark:shadow-[0_24px_64px_rgba(0,0,0,0.6)] p-6 flex flex-col items-center text-center no-drag transition-all"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Centered Icon Badge */}
         <div
           className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3.5 shadow-xs ${
-            isDestructive ? 'bg-red-50 text-red-600' : 'bg-black/5 text-gray-800'
+            isDestructive
+              ? 'bg-red-50 dark:bg-red-500/20 text-red-600 dark:text-red-400'
+              : 'bg-black/5 dark:bg-white/10 text-gray-800 dark:text-gray-200'
           }`}
         >
           {isDestructive ? (
@@ -64,12 +66,12 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
         </div>
 
         {/* Title */}
-        <h3 className="text-base font-semibold text-gray-900 tracking-tight leading-snug">
+        <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 tracking-tight leading-snug">
           {title}
         </h3>
 
         {/* Message */}
-        <p className="text-xs text-gray-500 mt-2 leading-relaxed px-1">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 leading-relaxed px-1">
           {message}
         </p>
 
@@ -78,7 +80,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="h-9 px-4 rounded-xl text-xs font-medium text-gray-700 bg-black/[0.05] hover:bg-black/[0.08] active:bg-black/[0.12] transition cursor-pointer flex items-center justify-center select-none"
+            className="h-9 px-4 rounded-xl text-xs font-medium text-gray-700 dark:text-gray-300 bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] active:bg-black/[0.12] transition cursor-pointer flex items-center justify-center select-none"
           >
             {cancelLabel}
           </button>
@@ -88,7 +90,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
             className={`h-9 px-4 rounded-xl text-xs font-semibold text-white transition cursor-pointer flex items-center justify-center shadow-xs select-none ${
               isDestructive
                 ? 'bg-red-600 hover:bg-red-700 active:bg-red-800'
-                : 'bg-black hover:bg-gray-800 active:bg-gray-900'
+                : 'bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200 active:bg-gray-900'
             }`}
           >
             {confirmLabel}

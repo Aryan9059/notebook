@@ -3,6 +3,7 @@ import { ArrowLeftRight, Trash2, RotateCw } from 'lucide-react';
 import { ArrowElement } from '../../types';
 import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
+import { useThemeStore } from '../../store/useThemeStore';
 
 interface ArrowCardProps {
   element: ArrowElement;
@@ -13,6 +14,9 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
   const selectedIds = useUiStore((state) => state.selectedIds);
   const setSelectedId = useUiStore((state) => state.setSelectedId);
   const activeTool = useUiStore((state) => state.activeTool);
+
+  const theme = useThemeStore((state) => state.theme);
+  const isDark = theme === 'dark';
 
   const updateElement = useNotesStore((state) => state.updateElement);
   const deleteElement = useNotesStore((state) => state.deleteElement);
@@ -33,7 +37,14 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
 
   const { startX, startY, endX, endY } = element;
   const strokeWidth = element.strokeWidth || 2.5;
-  const color = element.color || '#000000';
+  // Default black in light mode, crisp gray/white in dark mode
+  const color = element.color
+    ? isDark && (element.color === '#000000' || element.color === '#111827')
+      ? '#ECECEC'
+      : element.color
+    : isDark
+    ? '#ECECEC'
+    : '#000000';
   const arrowHeadPosition = element.arrowHeadPosition || 'start'; // Default: head at the first clicked point
 
   // Geometry calculations
@@ -57,30 +68,57 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
   const cx = mx + nx * h;
   const cy = my + ny * h;
 
-  // Tangent angles for arrowheads
-  const thetaStart = Math.atan2(cy - startY, cx - startX);
-  const thetaEnd = Math.atan2(endY - cy, endX - cx);
+  // Sleek, modern arrowhead dimensions (13px length, 10px total width)
+  const headLen = 13;
+  const headWidth = 5;
 
-  // Arrowhead polygon at start (pointing at start point: direction thetaStart + PI)
-  const headLen = 15;
-  const headWidth = 8;
+  const hasStartHead = arrowHeadPosition === 'start' || arrowHeadPosition === 'both';
+  const hasEndHead = arrowHeadPosition === 'end' || arrowHeadPosition === 'both';
 
+  // Tangent unit vectors for arrowheads pointing towards their respective tips
+  // At start (t=0): tangent towards start point (startX, startY)
+  const vStartX = startX - cx;
+  const vStartY = startY - cy;
+  const lenStart = Math.hypot(vStartX, vStartY) || 1;
+  const uxStart = vStartX / lenStart;
+  const uyStart = vStartY / lenStart;
+  const vxStart = -uyStart;
+  const vyStart = uxStart;
+
+  // Arrowhead polygon at start
   const startTipX = startX;
   const startTipY = startY;
-  const startAngle = thetaStart + Math.PI;
-  const startLeftX = startTipX - headLen * Math.cos(startAngle) + headWidth * Math.sin(startAngle);
-  const startLeftY = startTipY - headLen * Math.sin(startAngle) - headWidth * Math.cos(startAngle);
-  const startRightX = startTipX - headLen * Math.cos(startAngle) - headWidth * Math.sin(startAngle);
-  const startRightY = startTipY - headLen * Math.sin(startAngle) + headWidth * Math.cos(startAngle);
+  const startBaseX = startTipX - uxStart * headLen;
+  const startBaseY = startTipY - uyStart * headLen;
+  const startLeftX = startBaseX + vxStart * headWidth;
+  const startLeftY = startBaseY + vyStart * headWidth;
+  const startRightX = startBaseX - vxStart * headWidth;
+  const startRightY = startBaseY - vyStart * headWidth;
 
-  // Arrowhead polygon at end (pointing at end point: direction thetaEnd)
+  // At end (t=1): tangent towards end point (endX, endY)
+  const vEndX = endX - cx;
+  const vEndY = endY - cy;
+  const lenEnd = Math.hypot(vEndX, vEndY) || 1;
+  const uxEnd = vEndX / lenEnd;
+  const uyEnd = vEndY / lenEnd;
+  const vxEnd = -uyEnd;
+  const vyEnd = uxEnd;
+
+  // Arrowhead polygon at end
   const endTipX = endX;
   const endTipY = endY;
-  const endAngle = thetaEnd;
-  const endLeftX = endTipX - headLen * Math.cos(endAngle) + headWidth * Math.sin(endAngle);
-  const endLeftY = endTipY - headLen * Math.sin(endAngle) - headWidth * Math.cos(endAngle);
-  const endRightX = endTipX - headLen * Math.cos(endAngle) - headWidth * Math.sin(endAngle);
-  const endRightY = endTipY - headLen * Math.sin(endAngle) + headWidth * Math.cos(endAngle);
+  const endBaseX = endTipX - uxEnd * headLen;
+  const endBaseY = endTipY - uyEnd * headLen;
+  const endLeftX = endBaseX + vxEnd * headWidth;
+  const endLeftY = endBaseY + vyEnd * headWidth;
+  const endRightX = endBaseX - vxEnd * headWidth;
+  const endRightY = endBaseY - vyEnd * headWidth;
+
+  // Shaft path endpoints: recessed inside arrowhead by (headLen - 2.5) so rounded linecap never pokes out of the tip
+  const pathStartX = hasStartHead ? startTipX - uxStart * (headLen - 2.5) : startX;
+  const pathStartY = hasStartHead ? startTipY - uyStart * (headLen - 2.5) : startY;
+  const pathEndX = hasEndHead ? endTipX - uxEnd * (headLen - 2.5) : endX;
+  const pathEndY = hasEndHead ? endTipY - uyEnd * (headLen - 2.5) : endY;
 
   // Handle pointer down for endpoints or curvature
   const handlePointerDown = useCallback(
@@ -222,7 +260,7 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
 
         {/* Visible smooth curved arrow shaft */}
         <path
-          d={`M ${startX} ${startY} Q ${cx} ${cy} ${endX} ${endY}`}
+          d={`M ${pathStartX} ${pathStartY} Q ${cx} ${cy} ${pathEndX} ${pathEndY}`}
           fill="none"
           stroke={color}
           strokeWidth={strokeWidth}
@@ -296,7 +334,7 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
               width: '14px',
               height: '14px',
             }}
-            className="rounded-full bg-white border-2 border-black shadow-lg cursor-crosshair hover:scale-125 transition-transform z-50"
+            className="rounded-full bg-white dark:bg-[#262626] border-2 border-black dark:border-white shadow-lg cursor-crosshair hover:scale-125 transition-transform z-50"
           />
 
           {/* End Point Handle (Resizes / repositions arrow end & length) */}
@@ -313,7 +351,7 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
               width: '14px',
               height: '14px',
             }}
-            className="rounded-full bg-white border-2 border-black shadow-lg cursor-crosshair hover:scale-125 transition-transform z-50"
+            className="rounded-full bg-white dark:bg-[#262626] border-2 border-black dark:border-white shadow-lg cursor-crosshair hover:scale-125 transition-transform z-50"
           />
 
           {/* Curvature Control Point Handle (Adjusts curve arch) */}
@@ -330,7 +368,7 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
               width: '12px',
               height: '12px',
             }}
-            className="rounded-full bg-black hover:bg-gray-800 border-2 border-white shadow-md cursor-move hover:scale-125 transition-transform z-50"
+            className="rounded-full bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 border-2 border-white dark:border-black shadow-md cursor-move hover:scale-125 transition-transform z-50"
           />
 
           {/* Floating Action Bar centered above the midpoint */}
@@ -343,13 +381,13 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
               top: `${cy - 36}px`,
               transform: 'translateX(-50%)',
             }}
-            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-white/95 backdrop-blur-xl border border-black/10 shadow-[0_4px_16px_rgba(0,0,0,0.12)] z-50 animate-fade-in no-drag whitespace-nowrap"
+            className="flex items-center gap-1 px-2 py-1 rounded-xl bg-white/95 dark:bg-[#262626]/95 backdrop-blur-xl border border-black/10 dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.12)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] z-50 animate-fade-in no-drag whitespace-nowrap"
           >
             <button
               type="button"
               onClick={toggleArrowHead}
               title={`Arrowhead: ${arrowHeadPosition}. Click to toggle.`}
-              className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-black hover:bg-black/[0.05] transition cursor-pointer"
+              className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-black dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] transition cursor-pointer"
             >
               <ArrowLeftRight size={13} />
               <span className="capitalize">{arrowHeadPosition}</span>
@@ -359,7 +397,7 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
               type="button"
               onClick={flipCurve}
               title="Flip curve (upward / downward)"
-              className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-black hover:bg-black/[0.05] transition cursor-pointer"
+              className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-black dark:hover:text-white hover:bg-black/[0.05] dark:hover:bg-white/[0.08] transition cursor-pointer"
             >
               <RotateCw size={13} />
               <span>Flip Arch</span>
@@ -369,7 +407,7 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
               type="button"
               onClick={handleDelete}
               title="Delete arrow"
-              className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 transition cursor-pointer"
+              className="px-2 py-1 rounded-lg flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition cursor-pointer"
             >
               <Trash2 size={13} />
               <span>Delete</span>

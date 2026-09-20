@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
+import { useThemeStore } from '../../store/useThemeStore';
 import {
   calculateCursorZoom,
   clamp,
@@ -53,6 +54,9 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
   const clearSelection = useUiStore((state) => state.clearSelection);
   const setEditingId = useUiStore((state) => state.setEditingId);
   const setActiveTool = useUiStore((state) => state.setActiveTool);
+
+  const theme = useThemeStore((state) => state.theme);
+  const isDark = theme === 'dark';
 
   // Fallback viewport
   const viewport = activeSection?.viewport ?? { x: 0, y: 0, zoom: 1 };
@@ -315,6 +319,17 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
           } else {
             setActiveTool('arrow');
           }
+        } else if (k === 't' || e.code === 'KeyT') {
+          // T = Create new text element at viewport center and start typing
+          e.preventDefault();
+          const container = containerRef.current;
+          if (container && onDoubleClickCanvas) {
+            const rect = container.getBoundingClientRect();
+            const vp = viewportRef.current;
+            const canvasX = (rect.width / 2 - vp.x) / vp.zoom;
+            const canvasY = (rect.height / 2 - vp.y) / vp.zoom;
+            onDoubleClickCanvas(canvasX, canvasY);
+          }
         }
       }
 
@@ -396,6 +411,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     setActiveTool,
     undo,
     redo,
+    onDoubleClickCanvas,
   ]);
 
   // Pointer-based pan (Hand tool, Space+drag, or middle-click drag) or Arrow drafting
@@ -698,17 +714,30 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
           const cx = (startX + currentX) / 2 + nx * h;
           const cy = (startY + currentY) / 2 + ny * h;
 
-          const thetaStart = Math.atan2(cy - startY, cx - startX);
-          const headLen = 15;
-          const headWidth = 8;
-          const startAngle = thetaStart + Math.PI;
+          const headLen = 13;
+          const headWidth = 5;
+
+          const vStartX = startX - cx;
+          const vStartY = startY - cy;
+          const lenStart = Math.hypot(vStartX, vStartY) || 1;
+          const uxStart = vStartX / lenStart;
+          const uyStart = vStartY / lenStart;
+          const vxStart = -uyStart;
+          const vyStart = uxStart;
 
           const startTipX = startX;
           const startTipY = startY;
-          const startLeftX = startTipX - headLen * Math.cos(startAngle) + headWidth * Math.sin(startAngle);
-          const startLeftY = startTipY - headLen * Math.sin(startAngle) - headWidth * Math.cos(startAngle);
-          const startRightX = startTipX - headLen * Math.cos(startAngle) - headWidth * Math.sin(startAngle);
-          const startRightY = startTipY - headLen * Math.sin(startAngle) + headWidth * Math.cos(startAngle);
+          const startBaseX = startTipX - uxStart * headLen;
+          const startBaseY = startTipY - uyStart * headLen;
+          const startLeftX = startBaseX + vxStart * headWidth;
+          const startLeftY = startBaseY + vyStart * headWidth;
+          const startRightX = startBaseX - vxStart * headWidth;
+          const startRightY = startBaseY - vyStart * headWidth;
+
+          const pathStartX = startTipX - uxStart * (headLen - 2.5);
+          const pathStartY = startTipY - uyStart * (headLen - 2.5);
+
+          const draftColor = isDark ? '#ECECEC' : '#000000';
 
           return (
             <svg
@@ -717,19 +746,19 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
             >
               {/* Stretching curved shaft */}
               <path
-                d={`M ${startX} ${startY} Q ${cx} ${cy} ${currentX} ${currentY}`}
+                d={`M ${pathStartX} ${pathStartY} Q ${cx} ${cy} ${currentX} ${currentY}`}
                 fill="none"
-                stroke="#000000"
+                stroke={draftColor}
                 strokeWidth={2.5}
                 strokeLinecap="round"
               />
               {/* Arrowhead at Start point */}
               <polygon
                 points={`${startTipX},${startTipY} ${startLeftX},${startLeftY} ${startRightX},${startRightY}`}
-                fill="#000000"
+                fill={draftColor}
               />
               {/* Subtle endpoint guide circle */}
-              <circle cx={currentX} cy={currentY} r={3.5} fill="#000000" fillOpacity={0.7} />
+              <circle cx={currentX} cy={currentY} r={3.5} fill={draftColor} fillOpacity={0.7} />
             </svg>
           );
         })()}

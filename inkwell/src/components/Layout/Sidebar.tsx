@@ -119,47 +119,42 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
           type="button"
           onClick={toggleSidebar}
           title="Open Sidebar"
-          className="absolute top-4 left-4 z-50 p-2.5 rounded-xl bg-white/90 backdrop-blur-xl border border-black/[0.08] shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:bg-white text-gray-700 cursor-pointer transition-all duration-150 no-drag hover:scale-105 active:scale-95"
+          className="absolute top-4 left-4 z-50 w-8 h-8 rounded-xl bg-white/90 hover:bg-white dark:bg-[#262626]/90 dark:hover:bg-[#2f2f2f] backdrop-blur-xl border border-black/[0.08] dark:border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.4)] text-gray-700 dark:text-gray-200 flex items-center justify-center cursor-pointer transition-all duration-150 no-drag hover:scale-105 active:scale-95"
         >
-          <PanelLeft size={18} />
+          <PanelLeft size={15} />
         </button>
       )}
 
       {/* Sidebar container with macOS vibrant aesthetic */}
       <aside
-        className={`h-full bg-[#F5F5F7]/85 backdrop-blur-xl border-r border-black/[0.06] flex flex-col shrink-0 overflow-hidden transition-all duration-200 select-none z-30 relative ${
-          isSidebarOpen ? 'w-[280px] px-3.5 pt-3' : 'w-0 px-0 pt-0 border-r-0'
+        className={`h-full bg-[#F5F5F7]/85 dark:bg-[#171717] backdrop-blur-xl border-r border-black/[0.06] dark:border-white/[0.08] flex flex-col shrink-0 overflow-hidden transition-all duration-200 select-none z-30 relative ${
+          isSidebarOpen ? 'w-[280px] px-3.5' : 'w-0 px-0 pt-0 border-r-0'
         }`}
       >
-        <div className="titlebar-pad w-full flex flex-col h-full">
-          {/* Header row */}
-          <div className="flex items-center justify-between relative mb-5 pb-3 border-b border-black/[0.06]">
-            <div ref={dropdownRef} className="relative flex-1 min-w-0 mr-1.5">
+        <div className="w-full flex flex-col h-full pt-4">
+          {/* Header row aligned with FloatingToolbar level (top-4, h-11) */}
+          <div className="h-11 flex items-center justify-between relative mb-3 pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
+            <div ref={dropdownRef} className="relative flex-1 min-w-0 mr-2">
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-2 px-2 py-1.5 -ml-2 rounded-xl hover:bg-black/[0.04] transition cursor-pointer max-w-full"
+                className="h-8 px-2.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-800 dark:text-gray-200 text-xs font-medium flex items-center gap-2 transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06] max-w-full"
               >
-                <div className="w-6 h-6 rounded-lg bg-black text-white flex items-center justify-center shrink-0 shadow-xs">
-                  <BookOpen size={13} strokeWidth={2.2} />
+                <div className="w-5 h-5 rounded-md bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shrink-0 shadow-xs">
+                  <BookOpen size={11} strokeWidth={2.2} />
                 </div>
-                <div className="flex flex-col min-w-0 text-left">
-                  <span className="font-semibold text-gray-900 text-sm truncate">
+                <div className="flex items-center min-w-0 text-left flex-1">
+                  <span className="font-medium text-gray-900 dark:text-gray-100 text-xs truncate">
                     {activeNotebook?.name ?? 'Notebook'}
                   </span>
-                  {activeNotebook?.folderPath && (
-                    <span className="text-[10px] text-gray-500 truncate" title={activeNotebook.folderPath}>
-                      📁 {activeNotebook.folderPath.split('/').pop() || activeNotebook.folderPath}
-                    </span>
-                  )}
                 </div>
-                <ChevronDown size={14} className="shrink-0 text-gray-400 ml-auto" />
+                <ChevronDown size={12} className="shrink-0 text-gray-400 dark:text-gray-400 ml-0.5" />
               </button>
 
               {/* Apple-style Popover Menu for Notebook Switching & Management */}
               {isDropdownOpen && (
-                <div className="absolute top-full left-0 mt-2 w-[250px] rounded-xl bg-white/95 backdrop-blur-2xl shadow-[0_16px_40px_rgba(0,0,0,0.14)] border border-black/10 p-1.5 z-50 animate-fade-in no-drag">
-                  <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+                <div className="absolute top-full left-0 mt-2 w-[250px] rounded-xl bg-white/95 dark:bg-[#262626]/98 backdrop-blur-2xl shadow-[0_16px_40px_rgba(0,0,0,0.14)] dark:shadow-[0_16px_40px_rgba(0,0,0,0.5)] border border-black/10 dark:border-white/10 p-1.5 z-50 animate-fade-in no-drag">
+                  <div className="px-2 py-1 text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                     Notebooks
                   </div>
                   <div className="max-h-56 overflow-y-auto my-0.5 space-y-0.5">
@@ -174,20 +169,20 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                           }}
                           className={`w-full px-2.5 py-1.5 rounded-lg text-left flex items-center justify-between group transition-colors cursor-pointer ${
                             isActive
-                              ? 'bg-black/[0.05] text-black font-semibold'
-                              : 'text-gray-700 hover:bg-black/[0.03]'
+                              ? 'bg-black/[0.05] dark:bg-white/[0.1] text-black dark:text-white font-semibold'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
                           }`}
                         >
                           <div className="flex items-center gap-2 min-w-0 flex-1 mr-1.5">
                             <BookOpen
                               size={13}
-                              className={isActive ? 'text-black shrink-0' : 'text-gray-400 shrink-0'}
+                              className={isActive ? 'text-black dark:text-white shrink-0' : 'text-gray-400 dark:text-gray-500 shrink-0'}
                             />
                             <div className="flex flex-col min-w-0">
-                              <span className="text-xs truncate font-medium text-gray-900 leading-tight">
+                              <span className="text-xs truncate font-medium text-gray-900 dark:text-gray-100 leading-tight">
                                 {nb.name}
                               </span>
-                              <span className="text-[10px] text-gray-400 truncate">
+                              <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
                                 {nb.sections.length} {nb.sections.length === 1 ? 'section' : 'sections'}
                                 {nb.folderPath ? ` • 📁 ${nb.folderPath.split('/').pop()}` : ''}
                               </span>
@@ -207,14 +202,14 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                                 });
                               }}
                               title="Delete Notebook"
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-600 transition cursor-pointer"
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-500/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer"
                             >
                               <Trash2 size={12} />
                             </button>
 
                             {/* Active checkmark */}
                             {isActive && (
-                              <Check size={13} strokeWidth={2.5} className="text-black shrink-0" />
+                              <Check size={13} strokeWidth={2.5} className="text-black dark:text-white shrink-0" />
                             )}
                           </div>
                         </div>
@@ -222,7 +217,7 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                     })}
                   </div>
 
-                  <div className="border-t border-black/[0.06] pt-1 mt-1 space-y-0.5">
+                  <div className="border-t border-black/[0.06] dark:border-white/[0.08] pt-1 mt-1 space-y-0.5">
                     {activeNotebook?.folderPath && (
                       <button
                         type="button"
@@ -235,9 +230,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                             console.error('Failed to open folder:', err);
                           }
                         }}
-                        className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-700 hover:bg-black/[0.04] flex items-center gap-2 cursor-pointer font-medium transition-colors"
+                        className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-medium transition-colors"
                       >
-                        <Folder size={13} className="text-gray-500 shrink-0" />
+                        <Folder size={13} className="text-gray-500 dark:text-gray-400 shrink-0" />
                         <span className="truncate">Reveal in Finder</span>
                       </button>
                     )}
@@ -247,9 +242,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                         setIsDropdownOpen(false);
                         onNewNotebookClick?.();
                       }}
-                      className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-700 hover:bg-black/[0.04] flex items-center gap-2 cursor-pointer font-medium transition-colors"
+                      className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer font-medium transition-colors"
                     >
-                      <Plus size={13} className="text-gray-500 shrink-0" />
+                      <Plus size={13} className="text-gray-500 dark:text-gray-400 shrink-0" />
                       <span>New Notebook</span>
                     </button>
                     <button
@@ -258,9 +253,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                         setIsDropdownOpen(false);
                         onGoToStartScreen?.();
                       }}
-                      className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-600 hover:bg-black/[0.04] flex items-center gap-2 cursor-pointer transition-colors"
+                      className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-600 dark:text-gray-400 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer transition-colors"
                     >
-                      <ArrowLeft size={13} className="text-gray-500 shrink-0" />
+                      <ArrowLeft size={13} className="text-gray-500 dark:text-gray-400 shrink-0" />
                       <span>All Notebooks</span>
                     </button>
                   </div>
@@ -273,18 +268,18 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
               type="button"
               onClick={toggleSidebar}
               title="Close Sidebar"
-              className="p-1.5 rounded-lg hover:bg-black/[0.05] transition text-gray-500 hover:text-gray-900 cursor-pointer shrink-0"
+              className="w-8 h-8 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-700 dark:text-gray-200 flex items-center justify-center transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06] shrink-0"
             >
-              <PanelLeft size={18} />
+              <PanelLeft size={15} />
             </button>
           </div>
 
           {/* Section list label */}
           <div className="flex items-center justify-between px-1 mb-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
               Sections
             </span>
-            <span className="text-[11px] text-gray-400">
+            <span className="text-[11px] text-gray-400 dark:text-gray-500">
               {activeNotebook?.sections.length ?? 0}
             </span>
           </div>
@@ -300,16 +295,16 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                   key={sec.id}
                   onClick={() => setActiveSection(sec.id)}
                   onDoubleClick={() => handleStartRename(sec.id, sec.name)}
-                  className={`w-full h-11 rounded-xl px-3 flex items-center justify-between text-sm transition cursor-pointer select-none group relative ${
+                  className={`w-full h-8 rounded-xl px-2.5 flex items-center justify-between text-xs font-medium transition cursor-pointer select-none group relative ${
                     isActive
-                      ? 'bg-white text-gray-900 font-medium shadow-[0_2px_8px_rgba(0,0,0,0.06)] border border-black/[0.04]'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-black/[0.04]'
+                      ? 'bg-white dark:bg-[#2F2F2F] text-gray-900 dark:text-gray-100 font-medium shadow-[0_2px_8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.3)] border border-black/[0.04] dark:border-white/[0.08]'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/[0.04] dark:hover:bg-white/[0.05]'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-1.5">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 mr-1.5">
                     <Layers
-                      size={15}
-                      className={isActive ? 'text-black shrink-0' : 'text-gray-400 shrink-0'}
+                      size={13}
+                      className={isActive ? 'text-black dark:text-white shrink-0' : 'text-gray-400 dark:text-gray-500 shrink-0'}
                     />
                     {isRenaming ? (
                       <input
@@ -323,10 +318,10 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                           if (e.key === 'Escape') setEditingSectionId(null);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full h-6 bg-transparent text-gray-900 text-sm font-medium border-b border-black focus:outline-none"
+                        className="w-full h-5 bg-transparent text-gray-900 dark:text-gray-100 text-xs font-medium border-b border-black dark:border-white focus:outline-none"
                       />
                     ) : (
-                      <span className="truncate">{sec.name}</span>
+                      <span className="truncate text-xs font-medium">{sec.name}</span>
                     )}
                   </div>
 
@@ -343,9 +338,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                         });
                       }}
                       title="Delete Section"
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-black/10 text-gray-400 hover:text-red-600 transition cursor-pointer shrink-0"
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-black/10 dark:hover:bg-white/10 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer shrink-0"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={13} />
                     </button>
                   )}
                 </div>
@@ -356,9 +351,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
             <button
               type="button"
               onClick={handleAddSection}
-              className="w-full h-9 mt-2 rounded-xl border border-dashed border-gray-300/80 hover:border-gray-400 text-gray-500 hover:text-gray-800 text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer select-none hover:bg-white/50"
+              className="w-full h-8 mt-2 rounded-xl border border-dashed border-gray-300/80 dark:border-white/15 hover:border-gray-400 dark:hover:border-white/30 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 text-xs font-medium flex items-center justify-center gap-1.5 transition cursor-pointer select-none hover:bg-white/50 dark:hover:bg-white/[0.04]"
             >
-              <Plus size={14} />
+              <Plus size={13} />
               <span>Add Section</span>
             </button>
           </div>

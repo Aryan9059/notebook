@@ -453,11 +453,9 @@ export const useNotesStore = create<NotesState>()(
         if (!currentSection) return;
 
         const idSet = new Set(ids);
-        for (const el of currentSection.elements) {
-          if (idSet.has(el.id) && (el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
-            await deletePageImage(el.imageKey);
-          }
-        }
+        // NOTE: We intentionally do NOT delete image blobs from IDB here.
+        // Undo may restore these elements, and blobs must still be available.
+        // Orphaned blobs are cleaned up by collectGarbage() on next app start.
 
         const currentStack = undoStacks[activeSectionId] || [];
         const nextStack = [...currentStack, cloneElements(currentSection.elements)].slice(-MAX_UNDO_STEPS);
@@ -498,11 +496,9 @@ export const useNotesStore = create<NotesState>()(
 
         if (!currentSection) return;
 
-        for (const el of currentSection.elements) {
-          if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
-            await deletePageImage(el.imageKey);
-          }
-        }
+        // NOTE: We intentionally do NOT delete image blobs from IDB here.
+        // Undo may restore these elements, and blobs must still be available.
+        // Orphaned blobs are cleaned up by collectGarbage() on next app start.
 
         const currentStack = undoStacks[activeSectionId] || [];
         const nextStack = [...currentStack, cloneElements(currentSection.elements)].slice(-MAX_UNDO_STEPS);

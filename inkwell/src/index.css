@@ -1,13 +1,35 @@
 @import "tailwindcss";
 
-@theme {
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
   --color-canvas:        #F8F9FA;
   --color-chrome:        #EAEBED;
-  --color-sidebar:       #F3F4F6;
+  --color-sidebar:       #F5F5F7;
   --color-pill:          #9CA3AF;
   --color-pill-active:   #374151;
   --color-stroke:        #6B7280;
   --color-dot:           #B4B9C2;
+}
+
+:root.dark, html.dark {
+  --color-canvas:        #212121;
+  --color-chrome:        #2F2F2F;
+  --color-sidebar:       #171717;
+  --color-pill:          #3F3F3F;
+  --color-pill-active:   #4A4A4A;
+  --color-stroke:        #525252;
+  --color-dot:           #383838;
+}
+
+@theme {
+  --color-canvas:        var(--color-canvas);
+  --color-chrome:        var(--color-chrome);
+  --color-sidebar:       var(--color-sidebar);
+  --color-pill:          var(--color-pill);
+  --color-pill-active:   var(--color-pill-active);
+  --color-stroke:        var(--color-stroke);
+  --color-dot:           var(--color-dot);
 
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
@@ -30,6 +52,9 @@
     -webkit-user-select: none;
     cursor: default;
     color: #111827;
+  }
+  html.dark body {
+    color: #ECECEC;
   }
   input, textarea, [contenteditable="true"] {
     user-select: text;
@@ -63,6 +88,13 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.25);
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* Native macOS traffic-light clearance when titleBarStyle is Overlay */

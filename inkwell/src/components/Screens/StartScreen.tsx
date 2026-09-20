@@ -74,33 +74,33 @@ export const StartScreen: FC = () => {
   const recentNotebooks = [...notebooks].sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
-    <div className="w-full h-full bg-[#F8F9FA] select-none overflow-y-auto flex flex-col">
+    <div className="w-full h-full bg-[#F8F9FA] dark:bg-[#212121] select-none overflow-y-auto flex flex-col transition-colors">
       {/* Titlebar drag region for macOS */}
       <div className="fixed top-0 left-0 right-0 h-9 drag-region z-30 pointer-events-none" />
 
       {/* Main container with generous padding */}
       <div className="titlebar-pad px-14 pt-8 pb-16 max-w-7xl w-full mx-auto flex flex-col flex-1">
         {/* Header Branding */}
-        <div className="flex items-center justify-between mb-8 pb-6 border-b border-black/[0.06]">
+        <div className="flex items-center justify-between mb-8 pb-6 border-b border-black/[0.06] dark:border-white/[0.08]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-black text-white flex items-center justify-center shadow-md">
+            <div className="w-9 h-9 rounded-xl bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shadow-md">
               <Sparkles size={18} strokeWidth={2} />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-gray-900 leading-none">
+              <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100 leading-none">
                 Inkwell
               </h1>
-              <p className="text-xs text-gray-500 mt-1">Infinite-Canvas Workspace</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Infinite-Canvas Workspace</p>
             </div>
           </div>
         </div>
 
         {/* Section Heading */}
         <div className="mb-6">
-          <h2 className="text-2xl font-semibold tracking-tight text-gray-900">
+          <h2 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
             Notebooks
           </h2>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Create a new notebook or pick up where you left off
           </p>
         </div>
@@ -112,16 +112,16 @@ export const StartScreen: FC = () => {
             role="button"
             tabIndex={0}
             onClick={() => setIsCreateOpen(true)}
-            className="h-[210px] rounded-2xl bg-white/90 hover:bg-white border border-black/[0.08] hover:border-black/30 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
+            className="h-[210px] rounded-2xl bg-white/90 dark:bg-[#262626] hover:bg-white dark:hover:bg-[#2F2F2F] border border-black/[0.08] dark:border-white/[0.1] hover:border-black/30 dark:hover:border-white/30 shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.5)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
           >
-            <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-black dark:bg-white text-white dark:text-black flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-200">
               <Plus size={24} strokeWidth={2.5} />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-gray-900 group-hover:text-black transition-colors">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 group-hover:text-black dark:group-hover:text-white transition-colors">
                 New Notebook
               </h3>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Start with a blank infinite canvas
               </p>
             </div>
@@ -132,16 +132,16 @@ export const StartScreen: FC = () => {
             role="button"
             tabIndex={0}
             onClick={handleOpenExisting}
-            className="h-[210px] rounded-2xl bg-white/90 hover:bg-white border border-black/[0.08] hover:border-black/30 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
+            className="h-[210px] rounded-2xl bg-white/90 dark:bg-[#262626] hover:bg-white dark:hover:bg-[#2F2F2F] border border-black/[0.08] dark:border-white/[0.1] hover:border-black/30 dark:hover:border-white/30 shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.5)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
           >
-            <div className="w-12 h-12 rounded-2xl bg-gray-800 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-gray-800 dark:bg-[#383838] text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-200">
               <FolderOpen size={22} strokeWidth={2} />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-gray-900 group-hover:text-black transition-colors">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 group-hover:text-black dark:group-hover:text-white transition-colors">
                 Open Existing
               </h3>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Import an .inkwell.json file
               </p>
             </div>
@@ -149,12 +149,12 @@ export const StartScreen: FC = () => {
 
           {/* Cards 3...n: Recent notebooks or placeholder */}
           {recentNotebooks.length === 0 ? (
-            <div className="h-[210px] rounded-2xl border-2 border-dashed border-gray-200/90 p-6 flex flex-col items-center justify-center text-center select-none no-drag">
-              <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center mb-2.5">
+            <div className="h-[210px] rounded-2xl border-2 border-dashed border-gray-200/90 dark:border-white/10 p-6 flex flex-col items-center justify-center text-center select-none no-drag">
+              <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-[#2A2A2A] text-gray-400 flex items-center justify-center mb-2.5">
                 <BookOpen size={20} />
               </div>
-              <p className="text-xs font-medium text-gray-500">No recent notebooks</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Created notebooks will appear here</p>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400">No recent notebooks</p>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Created notebooks will appear here</p>
             </div>
           ) : (
             recentNotebooks.map((nb) => (
@@ -163,14 +163,14 @@ export const StartScreen: FC = () => {
                 role="button"
                 tabIndex={0}
                 onClick={() => setActiveNotebook(nb.id)}
-                className="h-[210px] rounded-2xl bg-white/90 hover:bg-white border border-black/[0.08] hover:border-black/[0.2] shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
+                className="h-[210px] rounded-2xl bg-white/90 dark:bg-[#262626] hover:bg-white dark:hover:bg-[#2F2F2F] border border-black/[0.08] dark:border-white/[0.1] hover:border-black/[0.2] dark:hover:border-white/30 shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.5)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-[#333333] text-gray-700 dark:text-gray-300 flex items-center justify-center group-hover:bg-gray-200 dark:group-hover:bg-[#3D3D3D] transition-colors">
                     <BookOpen size={20} />
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="px-2.5 py-1 rounded-full bg-gray-100/90 text-[11px] font-medium text-gray-600">
+                    <span className="px-2.5 py-1 rounded-full bg-gray-100/90 dark:bg-white/[0.08] text-[11px] font-medium text-gray-600 dark:text-gray-300">
                       {nb.sections.length} {nb.sections.length === 1 ? 'section' : 'sections'}
                     </span>
                     <button
@@ -180,7 +180,7 @@ export const StartScreen: FC = () => {
                         setConfirmDelete({ id: nb.id, name: nb.name });
                       }}
                       title="Delete Notebook"
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition cursor-pointer"
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -188,10 +188,10 @@ export const StartScreen: FC = () => {
                 </div>
 
                 <div>
-                  <h3 className="text-base font-semibold text-gray-900 truncate group-hover:text-black transition-colors">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-black dark:group-hover:text-white transition-colors">
                     {nb.name}
                   </h3>
-                  <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1.5">
                     <Clock size={12} className="shrink-0" />
                     <span>Updated {formatRelativeDate(nb.updatedAt)}</span>
                   </p>

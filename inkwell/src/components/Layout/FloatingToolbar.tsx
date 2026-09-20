@@ -18,9 +18,12 @@ import {
   Hand,
   MousePointer2,
   CornerUpRight,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
+import { useThemeStore } from '../../store/useThemeStore';
 import { TextElement } from '../../types';
 
 interface FloatingToolbarProps {
@@ -46,6 +49,9 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
   const selectedId = useUiStore((state) => state.selectedId);
   const activeTool = useUiStore((state) => state.activeTool);
   const setActiveTool = useUiStore((state) => state.setActiveTool);
+
+  const theme = useThemeStore((state) => state.theme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
 
   const activeNotebook = useNotesStore((state) =>
     state.notebooks.find((n) => n.id === state.activeNotebookId)
@@ -111,14 +117,14 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
   };
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-2xl bg-white/90 backdrop-blur-2xl border border-black/[0.08] shadow-[0_8px_30px_rgba(0,0,0,0.08)] px-2.5 py-1.5 select-none no-drag">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-2xl bg-white/90 dark:bg-[#262626]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.1] shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)] px-2.5 py-1.5 select-none no-drag transition-colors">
       {/* Add PDF button */}
       <button
         type="button"
         onClick={onAddPdfClick}
-        className="h-8 px-3.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 active:scale-95 text-gray-800 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-black/[0.04]"
+        className="h-8 px-3.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-800 dark:text-gray-200 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06]"
       >
-        <FileUp size={14} className="text-gray-900" />
+        <FileUp size={14} className="text-gray-900 dark:text-gray-100" />
         <span>Add pdf</span>
       </button>
 
@@ -127,21 +133,21 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
         type="button"
         onClick={onAddImageClick}
         title="Add image attachment"
-        className="w-8 h-8 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 active:scale-95 text-gray-700 flex items-center justify-center transition cursor-pointer border border-black/[0.04]"
+        className="w-8 h-8 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-700 dark:text-gray-200 flex items-center justify-center transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06]"
       >
         <Paperclip size={15} />
       </button>
 
       {/* Hand / Select / Arrow tool segmented toggle */}
-      <div className="flex items-center p-0.5 rounded-xl bg-gray-100/90 border border-black/[0.04] h-8">
+      <div className="flex items-center p-0.5 rounded-xl bg-gray-100/90 dark:bg-[#333333] border border-black/[0.04] dark:border-white/[0.06] h-8">
         <button
           type="button"
           onClick={() => setActiveTool('hand')}
           title="Hand Tool (Pan canvas) — H"
           className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
             activeTool === 'hand'
-              ? 'bg-black text-white shadow-sm font-semibold'
-              : 'text-gray-500 hover:text-gray-800'
+              ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm font-semibold'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
           }`}
         >
           <Hand size={14} />
@@ -152,8 +158,8 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
           title="Select Tool — V"
           className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
             activeTool === 'select'
-              ? 'bg-black text-white shadow-sm font-semibold'
-              : 'text-gray-500 hover:text-gray-800'
+              ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm font-semibold'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
           }`}
         >
           <MousePointer2 size={14} />
@@ -170,8 +176,8 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
           title="Curved Arrow Tool — A (Press 'a' while drawing to flip curve)"
           className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
             activeTool === 'arrow'
-              ? 'bg-black text-white shadow-sm font-semibold'
-              : 'text-gray-500 hover:text-gray-800'
+              ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm font-semibold'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
           }`}
         >
           <CornerUpRight size={14} />
@@ -179,17 +185,17 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
       </div>
 
       {/* Segmented font controls */}
-      <div className="flex items-center rounded-xl bg-gray-100/90 border border-black/[0.04] h-8 px-1">
+      <div className="flex items-center rounded-xl bg-gray-100/90 dark:bg-[#333333] border border-black/[0.04] dark:border-white/[0.06] h-8 px-1">
         {/* Font Family selector */}
         <div className="relative flex items-center">
-          <Type size={13} className="text-gray-400 ml-1.5 shrink-0" />
+          <Type size={13} className="text-gray-400 dark:text-gray-400 ml-1.5 shrink-0" />
           <select
             value={currentFontFamily}
             onChange={handleFontChange}
-            className="appearance-none bg-transparent pl-1.5 pr-5 text-gray-800 text-xs font-medium focus:outline-none cursor-pointer"
+            className="appearance-none bg-transparent pl-1.5 pr-5 text-gray-800 dark:text-gray-200 text-xs font-medium focus:outline-none cursor-pointer"
           >
             {FONT_FAMILIES.map((f) => (
-              <option key={f.label} value={f.value}>
+              <option key={f.label} value={f.value} className="bg-white dark:bg-[#262626] text-gray-900 dark:text-gray-100">
                 {f.label}
               </option>
             ))}
@@ -201,17 +207,17 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
         </div>
 
         {/* Separator line */}
-        <div className="w-[1px] h-3.5 bg-gray-300/80 mx-1" />
+        <div className="w-[1px] h-3.5 bg-gray-300/80 dark:bg-white/10 mx-1" />
 
         {/* Font Size selector */}
         <div className="relative flex items-center">
           <select
             value={currentFontSize}
             onChange={handleSizeChange}
-            className="appearance-none bg-transparent px-1.5 pr-4 text-gray-800 text-xs font-medium focus:outline-none cursor-pointer"
+            className="appearance-none bg-transparent px-1.5 pr-4 text-gray-800 dark:text-gray-200 text-xs font-medium focus:outline-none cursor-pointer"
           >
             {FONT_SIZES.map((s) => (
-              <option key={s} value={s}>
+              <option key={s} value={s} className="bg-white dark:bg-[#262626] text-gray-900 dark:text-gray-100">
                 {s}
               </option>
             ))}
@@ -229,23 +235,46 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
           type="button"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           title="More options"
-          className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-gray-100/80 transition text-gray-600 hover:text-gray-900 cursor-pointer"
+          className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-gray-100/80 dark:hover:bg-white/[0.08] transition text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white cursor-pointer"
         >
           <MoreVertical size={16} />
         </button>
 
         {isMenuOpen && (
-          <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl bg-white/95 backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.14)] border border-black/[0.08] p-1.5 z-50 animate-fade-in">
+          <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-white/95 dark:bg-[#262626]/98 backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.14)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.45)] border border-black/[0.08] dark:border-white/[0.1] p-1.5 z-50 animate-fade-in">
+            {/* Dark Mode Toggle Button */}
+            <button
+              type="button"
+              onClick={() => {
+                toggleTheme();
+              }}
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium"
+            >
+              <div className="flex items-center gap-2">
+                {theme === 'dark' ? (
+                  <Sun size={14} className="text-amber-400" />
+                ) : (
+                  <Moon size={14} className="text-gray-500" />
+                )}
+                <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-black/[0.05] dark:bg-white/[0.1] text-gray-500 dark:text-gray-400 capitalize font-mono">
+                {theme}
+              </span>
+            </button>
+
+            <div className="border-t border-black/[0.06] dark:border-white/[0.08] my-1" />
+
             <button
               type="button"
               onClick={() => {
                 setIsMenuOpen(false);
                 onExportPdfClick?.();
               }}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 hover:bg-black/[0.04] transition flex items-center justify-between cursor-pointer font-medium"
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium"
             >
               <div className="flex items-center gap-2">
-                <Download size={14} className="text-gray-500" />
+                <Download size={14} className="text-gray-500 dark:text-gray-400" />
                 <span>Export as PDF</span>
               </div>
             </button>
@@ -258,10 +287,10 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
                   await exportNotebookBundle(activeNotebook);
                 }
               }}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 hover:bg-black/[0.04] transition flex items-center justify-between cursor-pointer font-medium"
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium"
             >
               <div className="flex items-center gap-2">
-                <FileText size={14} className="text-gray-500" />
+                <FileText size={14} className="text-gray-500 dark:text-gray-400" />
                 <span>Export (.inkwell.json)</span>
               </div>
             </button>
@@ -271,19 +300,19 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
                 resetViewport();
                 setIsMenuOpen(false);
               }}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 hover:bg-black/[0.04] transition flex items-center justify-between cursor-pointer font-medium"
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium"
             >
               <div className="flex items-center gap-2">
-                <RotateCcw size={14} className="text-gray-500" />
+                <RotateCcw size={14} className="text-gray-500 dark:text-gray-400" />
                 <span>Reset View</span>
               </div>
               <span className="text-[10px] text-gray-400 font-mono">⌘0</span>
             </button>
-            <div className="border-t border-black/[0.06] my-1" />
+            <div className="border-t border-black/[0.06] dark:border-white/[0.08] my-1" />
             <button
               type="button"
               onClick={handleClearCanvas}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-red-600 hover:bg-red-500/10 transition flex items-center gap-2 cursor-pointer font-medium"
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-500/10 dark:hover:bg-red-500/20 transition flex items-center gap-2 cursor-pointer font-medium"
             >
               <Trash2 size={14} />
               <span>Clear Canvas</span>

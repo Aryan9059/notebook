@@ -220,8 +220,8 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
       onDoubleClick={handleCardDoubleClick}
       className={`group absolute select-none bg-transparent transition-shadow duration-100 ${
         isSelected || isEditing
-          ? 'outline-1 outline-dashed outline-gray-400/80 rounded-xl'
-          : 'hover:outline-1 hover:outline-dashed hover:outline-gray-300/60 rounded-xl'
+          ? 'outline-1 outline-dashed outline-gray-400/80 dark:outline-gray-500/80 rounded-xl'
+          : 'hover:outline-1 hover:outline-dashed hover:outline-gray-300/60 dark:hover:outline-gray-600/60 rounded-xl'
       }`}
       style={{
         transform: `translate(${element.x}px, ${element.y}px)`,
@@ -240,9 +240,9 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
         }`}
         style={{ pointerEvents: 'auto' }}
       >
-        <div className="flex items-center gap-1 text-gray-500 hover:text-black transition">
+        <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white transition">
           <GripHorizontal size={14} />
-          <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Note</span>
+          <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400 dark:text-gray-500">Note</span>
         </div>
 
         {isSelected && (
@@ -250,7 +250,7 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
             type="button"
             onClick={handleDelete}
             title="Delete note"
-            className="p-0.5 rounded hover:bg-black/5 text-gray-400 hover:text-red-600 transition cursor-pointer"
+            className="p-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer"
           >
             <Trash2 size={12} />
           </button>
@@ -259,7 +259,7 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
 
       {/* Transparent Text Body (Microsoft OneNote seamless style) */}
       <div
-        className="p-2 cursor-text text-gray-900 leading-relaxed outline-none"
+        className="p-2 cursor-text text-gray-900 dark:text-[#ECECEC] leading-relaxed outline-none"
         onBlur={handleBlur}
         style={{
           fontFamily: element.fontFamily || 'inherit',
@@ -282,7 +282,7 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
             className="absolute top-2 bottom-2 -right-1.5 w-3 cursor-ew-resize flex items-center justify-center group/resize z-20"
             style={{ pointerEvents: 'auto' }}
           >
-            <div className="w-1 h-6 rounded-full bg-gray-400/40 group-hover/resize:bg-black group-hover/resize:scale-y-125 transition-all" />
+            <div className="w-1 h-6 rounded-full bg-gray-400/40 dark:bg-gray-500/40 group-hover/resize:bg-black dark:group-hover/resize:bg-white group-hover/resize:scale-y-125 transition-all" />
           </div>
 
           {/* Bottom-right corner handle */}
@@ -295,7 +295,7 @@ const TextCardInner: FC<TextCardProps> = ({ element }) => {
             className="absolute -bottom-1.5 -right-1.5 w-4 h-4 cursor-nwse-resize flex items-center justify-center group/corner z-20"
             style={{ pointerEvents: 'auto' }}
           >
-            <div className="w-2.5 h-2.5 rounded-full bg-white border-[1.5px] border-gray-600 group-hover/corner:border-black group-hover/corner:scale-125 transition-all shadow-xs" />
+            <div className="w-2.5 h-2.5 rounded-full bg-white dark:bg-[#262626] border-[1.5px] border-gray-600 dark:border-gray-300 group-hover/corner:border-black dark:group-hover/corner:border-white group-hover/corner:scale-125 transition-all shadow-xs" />
           </div>
         </>
       )}
