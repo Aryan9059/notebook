@@ -2,7 +2,8 @@ import html2canvas from 'html2canvas-pro';
 import { jsPDF } from 'jspdf';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
-import { ArrowElement, CanvasElement } from '../types';
+import { ArrowElement, CanvasElement, TextElement } from '../types';
+import { getPageImageUrl } from '../store/imageStore';
 
 interface ArrowGeometry {
   sx: number;
@@ -36,14 +37,21 @@ interface ArrowGeometry {
   };
 }
 
-function computeArrowGeometry(el: ArrowElement, bboxX: number, bboxY: number): ArrowGeometry {
+function computeArrowGeometry(el: ArrowElement, originX: number, originY: number): ArrowGeometry {
   const { startX, startY, endX, endY } = el;
   const strokeWidth = el.strokeWidth || 1.8;
 
-  // On white PDF paper, default black or light colors should render as high-contrast dark
+  // On light grey PDF paper (#F5F5F7), default white/light colors should render as high-contrast dark
   let arrowColor = el.color || '#111827';
   const lower = arrowColor.toLowerCase();
-  if (lower === '#ffffff' || lower === '#ececec' || lower === '#f3f4f6' || lower === 'white') {
+  if (
+    lower === '#ffffff' ||
+    lower === '#ececec' ||
+    lower === '#f3f4f6' ||
+    lower === '#fafafa' ||
+    lower === 'rgb(236, 236, 236)' ||
+    lower === 'white'
+  ) {
     arrowColor = '#111827';
   }
 
@@ -80,8 +88,8 @@ function computeArrowGeometry(el: ArrowElement, bboxX: number, bboxY: number): A
   const vxStart = -uyStart;
   const vyStart = uxStart;
 
-  const startTipX = startX - bboxX;
-  const startTipY = startY - bboxY;
+  const startTipX = startX - originX;
+  const startTipY = startY - originY;
   const startBaseX = startTipX - uxStart * headLen;
   const startBaseY = startTipY - uyStart * headLen;
   const startLeftX = startBaseX + vxStart * headWidth;
@@ -97,8 +105,8 @@ function computeArrowGeometry(el: ArrowElement, bboxX: number, bboxY: number): A
   const vxEnd = -uyEnd;
   const vyEnd = uxEnd;
 
-  const endTipX = endX - bboxX;
-  const endTipY = endY - bboxY;
+  const endTipX = endX - originX;
+  const endTipY = endY - originY;
   const endBaseX = endTipX - uxEnd * headLen;
   const endBaseY = endTipY - uyEnd * headLen;
   const endLeftX = endBaseX + vxEnd * headWidth;
@@ -106,23 +114,23 @@ function computeArrowGeometry(el: ArrowElement, bboxX: number, bboxY: number): A
   const endRightX = endBaseX - vxEnd * headWidth;
   const endRightY = endBaseY - vyEnd * headWidth;
 
-  // Shaft path endpoints recessed inside arrowhead by (headLen - 2.0) so rounded linecap never pokes out of the tip
-  const pathStartX = hasStartHead ? startTipX - uxStart * (headLen - 2.0) : startX - bboxX;
-  const pathStartY = hasStartHead ? startTipY - uyStart * (headLen - 2.0) : startY - bboxY;
-  const pathEndX = hasEndHead ? endTipX - uxEnd * (headLen - 2.0) : endX - bboxX;
-  const pathEndY = hasEndHead ? endTipY - uyEnd * (headLen - 2.0) : endY - bboxY;
+  // Shaft path endpoints recessed inside arrowhead by (headLen - 2.0)
+  const pathStartX = hasStartHead ? startTipX - uxStart * (headLen - 2.0) : startX - originX;
+  const pathStartY = hasStartHead ? startTipY - uyStart * (headLen - 2.0) : startY - originY;
+  const pathEndX = hasEndHead ? endTipX - uxEnd * (headLen - 2.0) : endX - originX;
+  const pathEndY = hasEndHead ? endTipY - uyEnd * (headLen - 2.0) : endY - originY;
 
   return {
-    sx: startX - bboxX,
-    sy: startY - bboxY,
-    ex: endX - bboxX,
-    ey: endY - bboxY,
+    sx: startX - originX,
+    sy: startY - originY,
+    ex: endX - originX,
+    ey: endY - originY,
     pathStartX,
     pathStartY,
     pathEndX,
     pathEndY,
-    cpx: cx - bboxX,
-    cpy: cy - bboxY,
+    cpx: cx - originX,
+    cpy: cy - originY,
     strokeWidth,
     arrowColor,
     arrowHeadPosition,
@@ -145,17 +153,171 @@ function computeArrowGeometry(el: ArrowElement, bboxX: number, bboxY: number): A
   };
 }
 
+function drawArrowOnCanvas(
+  ctx: CanvasRenderingContext2D,
+  arrow: ArrowElement,
+  originX: number,
+  originY: number,
+  scale: number
+) {
+  const geo = computeArrowGeometry(arrow, originX, originY);
+
+  ctx.save();
+  ctx.scale(scale, scale);
+
+  // Curved shaft
+  ctx.beginPath();
+  ctx.moveTo(geo.pathStartX, geo.pathStartY);
+  ctx.quadraticCurveTo(geo.cpx, geo.cpy, geo.pathEndX, geo.pathEndY);
+  ctx.strokeStyle = geo.arrowColor;
+  ctx.lineWidth = geo.strokeWidth;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Arrowhead at Start
+  if (geo.arrowHeadPosition === 'start' || geo.arrowHeadPosition === 'both') {
+    ctx.beginPath();
+    ctx.moveTo(geo.startHead.tipX, geo.startHead.tipY);
+    ctx.lineTo(geo.startHead.leftX, geo.startHead.leftY);
+    ctx.lineTo(geo.startHead.rightX, geo.startHead.rightY);
+    ctx.closePath();
+    ctx.fillStyle = geo.arrowColor;
+    ctx.fill();
+  }
+
+  // Arrowhead at End
+  if (geo.arrowHeadPosition === 'end' || geo.arrowHeadPosition === 'both') {
+    ctx.beginPath();
+    ctx.moveTo(geo.endHead.tipX, geo.endHead.tipY);
+    ctx.lineTo(geo.endHead.leftX, geo.endHead.leftY);
+    ctx.lineTo(geo.endHead.rightX, geo.endHead.rightY);
+    ctx.closePath();
+    ctx.fillStyle = geo.arrowColor;
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+/** Pre-rasterize text notes individually into sharp, transparent canvas snippets */
+async function rasterizeTextElements(
+  textElements: TextElement[]
+): Promise<Map<string, { canvas: HTMLCanvasElement; width: number; height: number }>> {
+  const map = new Map<string, { canvas: HTMLCanvasElement; width: number; height: number }>();
+  if (textElements.length === 0) return map;
+
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.top = '0';
+  container.style.left = '0';
+  container.style.pointerEvents = 'none';
+  container.style.zIndex = '-9999';
+  container.style.opacity = '0';
+  document.body.appendChild(container);
+
+  try {
+    for (const el of textElements) {
+      const card = document.createElement('div');
+      card.style.width = `${el.width || 340}px`;
+      card.style.padding = '8px 12px';
+      card.style.fontFamily = el.fontFamily || 'Comic Sans MS, Comic Neue, cursive, sans-serif';
+      card.style.fontSize = `${el.fontSize || 18}px`;
+
+      let textColor = el.color || '#111827';
+      const lower = textColor.toLowerCase();
+      if (
+        lower === '#ffffff' ||
+        lower === '#ececec' ||
+        lower === '#f3f4f6' ||
+        lower === '#fafafa' ||
+        lower === 'rgb(236, 236, 236)' ||
+        lower === 'white'
+      ) {
+        textColor = '#111827';
+      }
+      card.style.color = textColor;
+      card.style.fontWeight = el.isBold ? 'bold' : 'normal';
+      card.style.lineHeight = '1.6';
+      card.style.wordBreak = 'break-word';
+      card.innerHTML = el.content;
+
+      container.appendChild(card);
+
+      const opts: any = {
+        backgroundColor: null,
+        scale: 2,
+        logging: false,
+      };
+      const c = await html2canvas(card, opts);
+      const measuredH = Math.max(card.offsetHeight, Math.round(c.height / 2));
+      map.set(el.id, {
+        canvas: c,
+        width: el.width || 340,
+        height: measuredH,
+      });
+
+      container.removeChild(card);
+    }
+  } finally {
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
+  }
+
+  return map;
+}
+
+/** Preload all PDF page and attached image elements into memory */
+async function preloadImages(
+  elements: CanvasElement[]
+): Promise<Map<string, HTMLImageElement>> {
+  const map = new Map<string, HTMLImageElement>();
+  const imageKeys = new Set<string>();
+  for (const el of elements) {
+    if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
+      imageKeys.add(el.imageKey);
+    }
+  }
+
+  await Promise.all(
+    Array.from(imageKeys).map(async (key) => {
+      const url = await getPageImageUrl(key);
+      if (!url) return;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = url;
+      await new Promise<void>((resolve) => {
+        if (img.complete) resolve();
+        else {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        }
+      });
+      map.set(key, img);
+    })
+  );
+
+  return map;
+}
+
 export async function exportSectionToPdf(
   elements: CanvasElement[],
   notebookName: string,
   sectionName: string
 ): Promise<void> {
   if (elements.length === 0) {
-    alert('Canvas is empty. Add text or PDF pages before exporting.');
+    alert('Canvas is empty. Add text, images, or PDF pages before exporting.');
     return;
   }
 
-  // 1. Calculate bounding box of all elements (+ 48px margin), including Bézier control points
+  // 1. Pre-rasterize text elements and pre-load images concurrently
+  const textElements = elements.filter((el): el is TextElement => el.type === 'text');
+  const [textMap, imageMap] = await Promise.all([
+    rasterizeTextElements(textElements),
+    preloadImages(elements),
+  ]);
+
+  // 2. Find topmost-leftmost corner (minX, minY) and bottommost-rightmost corner (maxX, maxY)
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -181,9 +343,17 @@ export async function exportSectionToPdf(
       minY = Math.min(minY, minArrowY);
       maxX = Math.max(maxX, maxArrowX);
       maxY = Math.max(maxY, maxArrowY);
+    } else if (el.type === 'text') {
+      const textInfo = textMap.get(el.id);
+      const elWidth = el.width || 340;
+      const elHeight = textInfo ? textInfo.height : (el.height || 160);
+      minX = Math.min(minX, el.x);
+      minY = Math.min(minY, el.y);
+      maxX = Math.max(maxX, el.x + elWidth);
+      maxY = Math.max(maxY, el.y + elHeight);
     } else {
-      const elWidth = el.width || 320;
-      const elHeight = el.type === 'pdf-page' ? el.height + 34 : el.height || 180;
+      const elWidth = el.width || 400;
+      const elHeight = el.height || 300;
       minX = Math.min(minX, el.x);
       minY = Math.min(minY, el.y);
       maxX = Math.max(maxX, el.x + elWidth);
@@ -191,252 +361,179 @@ export async function exportSectionToPdf(
     }
   }
 
+  // Add 48px margin around all elements
   const margin = 48;
-  const bboxX = minX - margin;
-  const bboxY = minY - margin;
-  const bboxWidth = Math.max(100, maxX - minX + margin * 2);
-  const bboxHeight = Math.max(100, maxY - minY + margin * 2);
+  const contentWidth = Math.max(100, maxX - minX + margin * 2);
+  const contentHeight = Math.max(100, maxY - minY + margin * 2);
 
-  // 2. Clone world layer into off-screen container at zoom: 1 (§9.5)
-  const offscreenContainer = document.createElement('div');
-  offscreenContainer.style.position = 'fixed';
-  offscreenContainer.style.left = '-99999px';
-  offscreenContainer.style.top = '0';
-  offscreenContainer.style.width = `${Math.ceil(bboxWidth)}px`;
-  offscreenContainer.style.height = `${Math.ceil(bboxHeight)}px`;
-  offscreenContainer.style.backgroundColor = '#FFFFFF';
-  offscreenContainer.style.color = '#111827';
-  offscreenContainer.style.overflow = 'hidden';
-  offscreenContainer.style.zIndex = '-9999';
+  // A4 Standard Dimensions (210mm x 297mm, ratio ≈ 1.4142857)
+  const A4_ASPECT = 297 / 210;
+  const pageCanvasWidth = Math.max(contentWidth, 800);
+  const pageCanvasHeight = Math.round(pageCanvasWidth * A4_ASPECT);
 
-  // 2a. Add non-arrow cards (Text notes, PDF pages, Image attachments)
-  for (const el of elements) {
-    if (el.type === 'arrow') continue;
+  // Center horizontally if content is narrower than page width
+  const extraX = pageCanvasWidth > contentWidth ? (pageCanvasWidth - contentWidth) / 2 : 0;
+  const pageOriginX = minX - margin - extraX;
+  const pageOriginY = minY - margin;
 
-    const domEl =
-      document.getElementById(`card-${el.id}`) ||
-      document.getElementById(`pdf-page-${el.id}`) ||
-      document.getElementById(`image-card-${el.id}`);
+  // Compute number of pages without any artificial limit
+  const pageCount = Math.max(1, Math.ceil(contentHeight / pageCanvasHeight));
 
-    if (domEl) {
-      const cloned = domEl.cloneNode(true) as HTMLElement;
-      // Remove interactive UI controls & resize handles
-      const controls = cloned.querySelectorAll(
-        '[data-control-bar], [data-resize-handle], [title*="Drag"], [title*="adjust"]'
-      );
-      controls.forEach((c) => c.remove());
+  // Render resolution per page (crisp 1800px width, well within WebKit canvas limits)
+  const renderWidth = Math.min(2400, Math.max(1600, Math.round(pageCanvasWidth * 1.5)));
+  const renderHeight = Math.round(renderWidth * A4_ASPECT);
+  const scale = renderWidth / pageCanvasWidth;
 
-      // Ensure text is high-contrast on white PDF paper while preserving custom user text colors
-      const textNodes = cloned.querySelectorAll<HTMLElement>('.ProseMirror, .ProseMirror *');
-      textNodes.forEach((node) => {
-        const currentCol = node.style.color;
-        if (!currentCol || currentCol === 'rgb(236, 236, 236)' || currentCol === '#ececec' || currentCol === '#ECECEC' || currentCol === 'inherit') {
-          if (el.type === 'text' && el.color) {
-            node.style.color = el.color;
-          } else {
-            node.style.color = '#111827';
-          }
-        }
-      });
+  // Initialize jsPDF document in portrait A4
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
 
-      if (el.type === 'text' && el.isBold) {
-        const body = cloned.querySelector('.cursor-text') as HTMLElement | null;
-        if (body) body.style.fontWeight = 'bold';
-      }
+  const pageWidthMm = 210;
+  const pageHeightMm = 297;
 
-      cloned.style.position = 'absolute';
-      cloned.style.left = '0';
-      cloned.style.top = '0';
-      cloned.style.transform = `translate(${el.x - bboxX}px, ${el.y - bboxY}px)`;
-      cloned.style.boxShadow = 'none';
-      offscreenContainer.appendChild(cloned);
-    }
-  }
+  // Sort elements by zIndex so layers stack properly (PDF pages < Images < Arrows < Text)
+  const sortedElements = [...elements].sort((a, b) => a.zIndex - b.zIndex);
 
-  // 2b. Add Arrow vector layer to offscreen container
-  const arrows = elements.filter((el): el is ArrowElement => el.type === 'arrow');
-  if (arrows.length > 0) {
-    const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svgEl.setAttribute('width', `${Math.ceil(bboxWidth)}`);
-    svgEl.setAttribute('height', `${Math.ceil(bboxHeight)}`);
-    svgEl.setAttribute('viewBox', `0 0 ${Math.ceil(bboxWidth)} ${Math.ceil(bboxHeight)}`);
-    svgEl.style.position = 'absolute';
-    svgEl.style.left = '0px';
-    svgEl.style.top = '0px';
-    svgEl.style.width = `${Math.ceil(bboxWidth)}px`;
-    svgEl.style.height = `${Math.ceil(bboxHeight)}px`;
-    svgEl.style.zIndex = '500';
+  // 3. Render each A4 page on its own fresh canvas
+  for (let p = 0; p < pageCount; p++) {
+    const pageTop = pageOriginY + p * pageCanvasHeight;
+    const pageBottom = pageTop + pageCanvasHeight;
+    const pageLeft = pageOriginX;
 
-    for (const arrow of arrows) {
-      const geo = computeArrowGeometry(arrow, bboxX, bboxY);
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = renderWidth;
+    pageCanvas.height = renderHeight;
+    const ctx = pageCanvas.getContext('2d');
+    if (!ctx) continue;
 
-      // Curved shaft
-      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      pathEl.setAttribute('d', `M ${geo.pathStartX} ${geo.pathStartY} Q ${geo.cpx} ${geo.cpy} ${geo.pathEndX} ${geo.pathEndY}`);
-      pathEl.setAttribute('fill', 'none');
-      pathEl.setAttribute('stroke', geo.arrowColor);
-      pathEl.setAttribute('stroke-width', `${geo.strokeWidth}`);
-      pathEl.setAttribute('stroke-linecap', 'round');
-      svgEl.appendChild(pathEl);
+    // Fill page background with subtle light grey (#F5F5F7)
+    ctx.fillStyle = '#F5F5F7';
+    ctx.fillRect(0, 0, renderWidth, renderHeight);
 
-      // Arrowhead at Start
-      if (geo.arrowHeadPosition === 'start' || geo.arrowHeadPosition === 'both') {
-        const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-        poly.setAttribute(
-          'points',
-          `${geo.startHead.tipX},${geo.startHead.tipY} ${geo.startHead.leftX},${geo.startHead.leftY} ${geo.startHead.rightX},${geo.startHead.rightY}`
-        );
-        poly.setAttribute('fill', geo.arrowColor);
-        svgEl.appendChild(poly);
-      }
+    // Draw elements overlapping with this page slice
+    for (const el of sortedElements) {
+      if (el.type === 'pdf-page') {
+        const elHeight = el.height || 300;
+        if (el.y + elHeight < pageTop || el.y > pageBottom) continue;
 
-      // Arrowhead at End
-      if (geo.arrowHeadPosition === 'end' || geo.arrowHeadPosition === 'both') {
-        const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-        poly.setAttribute(
-          'points',
-          `${geo.endHead.tipX},${geo.endHead.tipY} ${geo.endHead.leftX},${geo.endHead.leftY} ${geo.endHead.rightX},${geo.endHead.rightY}`
-        );
-        poly.setAttribute('fill', geo.arrowColor);
-        svgEl.appendChild(poly);
-      }
-    }
+        const dx = (el.x - pageLeft) * scale;
+        const dy = (el.y - pageTop) * scale;
+        const dw = el.width * scale;
+        const dh = elHeight * scale;
+        const r = 16 * scale;
 
-    offscreenContainer.appendChild(svgEl);
-  }
-
-  document.body.appendChild(offscreenContainer);
-
-  try {
-    // 3. html2canvas-pro (§10 P2) — any allowed for options per §10 P9 rule
-    const opts: any = {
-      scale: 2,
-      backgroundColor: '#FFFFFF',
-      useCORS: true,
-      logging: false,
-    };
-    const renderedCanvas = await html2canvas(offscreenContainer, opts);
-
-    // 3b. Guaranteed Canvas 2D direct draw of arrows on renderedCanvas
-    // This provides 100% reliability regardless of browser SVG image decode timing
-    const ctx = renderedCanvas.getContext('2d');
-    if (ctx && arrows.length > 0) {
-      const scale = opts.scale || 2;
-      ctx.save();
-      ctx.scale(scale, scale);
-
-      for (const arrow of arrows) {
-        const geo = computeArrowGeometry(arrow, bboxX, bboxY);
-
-        // Curved shaft
+        // Card background
+        ctx.save();
         ctx.beginPath();
-        ctx.moveTo(geo.pathStartX, geo.pathStartY);
-        ctx.quadraticCurveTo(geo.cpx, geo.cpy, geo.pathEndX, geo.pathEndY);
-        ctx.strokeStyle = geo.arrowColor;
-        ctx.lineWidth = geo.strokeWidth;
-        ctx.lineCap = 'round';
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(dx, dy, dw, dh, r);
+        } else {
+          ctx.rect(dx, dy, dw, dh);
+        }
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fill();
+        ctx.clip();
+
+        const img = imageMap.get(el.imageKey);
+        if (img) {
+          ctx.drawImage(img, dx, dy, dw, dh);
+        }
+        ctx.restore();
+
+        // Subtle border around card
+        ctx.save();
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(dx, dy, dw, dh, r);
+        } else {
+          ctx.rect(dx, dy, dw, dh);
+        }
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+        ctx.lineWidth = 1 * scale;
         ctx.stroke();
+        ctx.restore();
+      } else if (el.type === 'image') {
+        const elHeight = el.height || 300;
+        if (el.y + elHeight < pageTop || el.y > pageBottom) continue;
 
-        // Arrowhead at Start
-        if (geo.arrowHeadPosition === 'start' || geo.arrowHeadPosition === 'both') {
-          ctx.beginPath();
-          ctx.moveTo(geo.startHead.tipX, geo.startHead.tipY);
-          ctx.lineTo(geo.startHead.leftX, geo.startHead.leftY);
-          ctx.lineTo(geo.startHead.rightX, geo.startHead.rightY);
-          ctx.closePath();
-          ctx.fillStyle = geo.arrowColor;
-          ctx.fill();
-        }
+        const dx = (el.x - pageLeft) * scale;
+        const dy = (el.y - pageTop) * scale;
+        const dw = el.width * scale;
+        const dh = elHeight * scale;
+        const r = 12 * scale;
 
-        // Arrowhead at End
-        if (geo.arrowHeadPosition === 'end' || geo.arrowHeadPosition === 'both') {
-          ctx.beginPath();
-          ctx.moveTo(geo.endHead.tipX, geo.endHead.tipY);
-          ctx.lineTo(geo.endHead.leftX, geo.endHead.leftY);
-          ctx.lineTo(geo.endHead.rightX, geo.endHead.rightY);
-          ctx.closePath();
-          ctx.fillStyle = geo.arrowColor;
-          ctx.fill();
+        ctx.save();
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(dx, dy, dw, dh, r);
+        } else {
+          ctx.rect(dx, dy, dw, dh);
         }
+        ctx.clip();
+
+        const img = imageMap.get(el.imageKey);
+        if (img) {
+          ctx.drawImage(img, dx, dy, dw, dh);
+        }
+        ctx.restore();
+      } else if (el.type === 'text') {
+        const textInfo = textMap.get(el.id);
+        const th = textInfo ? textInfo.height : (el.height || 160);
+        if (el.y + th < pageTop || el.y > pageBottom) continue;
+
+        const dx = (el.x - pageLeft) * scale;
+        const dy = (el.y - pageTop) * scale;
+        const dw = (el.width || 340) * scale;
+        const dh = th * scale;
+
+        if (textInfo) {
+          ctx.drawImage(textInfo.canvas, dx, dy, dw, dh);
+        }
+      } else if (el.type === 'arrow') {
+        const dx = el.endX - el.startX;
+        const dy = el.endY - el.startY;
+        const dist = Math.hypot(dx, dy);
+        const safeDist = Math.max(dist, 1);
+        const ny = dx / safeDist;
+        const h = el.controlOffset !== undefined ? el.controlOffset : Math.max(28, Math.min(260, safeDist * 0.28));
+        const cy = (el.startY + el.endY) / 2 + ny * h;
+
+        const minArrowY = Math.min(el.startY, el.endY, cy) - 30;
+        const maxArrowY = Math.max(el.startY, el.endY, cy) + 30;
+        if (maxArrowY < pageTop || minArrowY > pageBottom) continue;
+
+        drawArrowOnCanvas(ctx, el, pageLeft, pageTop, scale);
       }
-
-      ctx.restore();
     }
 
-    // 4. Slice canvas into A4-proportioned bands
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
+    // Convert page canvas to high-quality image and add to PDF
+    const imgData = pageCanvas.toDataURL('image/jpeg', 0.94);
+    if (p > 0) {
+      doc.addPage();
+    }
+    doc.addImage(imgData, 'JPEG', 0, 0, pageWidthMm, pageHeightMm);
+  }
+
+  // 4. Save output via native dialog or browser fallback
+  const defaultFilename = `${notebookName} — ${sectionName}.pdf`;
+
+  // @ts-expect-error — Tauri check
+  const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
+
+  if (isTauri) {
+    const savePath = await save({
+      defaultPath: defaultFilename,
+      filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
     });
 
-    const pageWidthMm = 210;
-    const pageHeightMm = 297;
-    const pageAspectRatio = pageHeightMm / pageWidthMm;
-
-    const slicePixelHeight = Math.floor(renderedCanvas.width * pageAspectRatio);
-    const totalHeight = renderedCanvas.height;
-    let currentSrcY = 0;
-    let pageIndex = 0;
-
-    while (currentSrcY < totalHeight) {
-      const remainingHeight = totalHeight - currentSrcY;
-      const currentSliceH = Math.min(slicePixelHeight, remainingHeight);
-
-      const sliceCanvas = document.createElement('canvas');
-      sliceCanvas.width = renderedCanvas.width;
-      sliceCanvas.height = slicePixelHeight;
-      const sliceCtx = sliceCanvas.getContext('2d');
-
-      if (sliceCtx) {
-        sliceCtx.fillStyle = '#FFFFFF';
-        sliceCtx.fillRect(0, 0, sliceCanvas.width, slicePixelHeight);
-        sliceCtx.drawImage(
-          renderedCanvas,
-          0,
-          currentSrcY,
-          renderedCanvas.width,
-          currentSliceH,
-          0,
-          0,
-          renderedCanvas.width,
-          currentSliceH
-        );
-      }
-
-      const imgData = sliceCanvas.toDataURL('image/jpeg', 0.92);
-
-      if (pageIndex > 0) {
-        doc.addPage();
-      }
-      doc.addImage(imgData, 'JPEG', 0, 0, pageWidthMm, pageHeightMm);
-
-      currentSrcY += slicePixelHeight;
-      pageIndex++;
+    if (savePath) {
+      const buffer = doc.output('arraybuffer');
+      await writeFile(savePath, new Uint8Array(buffer));
     }
-
-    // 5. Save output via native dialog or browser fallback
-    const defaultFilename = `${notebookName} — ${sectionName}.pdf`;
-
-    // @ts-expect-error — Tauri check
-    const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
-
-    if (isTauri) {
-      const savePath = await save({
-        defaultPath: defaultFilename,
-        filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
-      });
-
-      if (savePath) {
-        const buffer = doc.output('arraybuffer');
-        await writeFile(savePath, new Uint8Array(buffer));
-      }
-    } else {
-      doc.save(defaultFilename);
-    }
-  } finally {
-    if (document.body.contains(offscreenContainer)) {
-      document.body.removeChild(offscreenContainer);
-    }
+  } else {
+    doc.save(defaultFilename);
   }
 }

@@ -13,6 +13,8 @@ import {
   Layers,
   Check,
   ArrowLeft,
+  MoreHorizontal,
+  Pencil,
 } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
@@ -33,6 +35,7 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
 
   const setActiveNotebook = useNotesStore((state) => state.setActiveNotebook);
   const deleteNotebook = useNotesStore((state) => state.deleteNotebook);
+  const renameNotebook = useNotesStore((state) => state.renameNotebook);
   const addSection = useNotesStore((state) => state.addSection);
   const renameSection = useNotesStore((state) => state.renameSection);
   const deleteSection = useNotesStore((state) => state.deleteSection);
@@ -44,7 +47,12 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Section inline renaming state
+  // Rename & context menu inside dropdown
+  const [menuNotebookId, setMenuNotebookId] = useState<string | null>(null);
+  const [renamingNotebookId, setRenamingNotebookId] = useState<string | null>(null);
+  const [renameNotebookInput, setRenameNotebookInput] = useState('');
+
+  // Inline section renaming state
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -60,6 +68,8 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsDropdownOpen(false);
+        setMenuNotebookId(null);
+        setRenamingNotebookId(null);
       }
     };
     if (isDropdownOpen) {
@@ -83,8 +93,8 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
   };
 
   const handleFinishRename = (secId: string) => {
-    if (!activeNotebookId) return;
     const trimmed = editingName.trim();
+    if (!activeNotebookId) return;
     renameSection(activeNotebookId, secId, trimmed || 'Untitled Section');
     setEditingSectionId(null);
   };
@@ -112,13 +122,13 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
 
   return (
     <>
-      {/* Floating PanelLeft toggle button when sidebar is collapsed (matches FloatingToolbar height h-11) */}
+      {/* Floating PanelLeft toggle button when sidebar is collapsed (placed below traffic lights at top-10) */}
       {!isSidebarOpen && (
         <button
           type="button"
           onClick={toggleSidebar}
           title="Open Sidebar"
-          className="absolute top-4 left-4 z-50 h-11 w-11 rounded-2xl bg-white/90 hover:bg-white dark:bg-[#262626]/95 dark:hover:bg-[#2f2f2f] backdrop-blur-2xl border border-black/[0.08] dark:border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)] text-gray-700 dark:text-gray-200 flex items-center justify-center cursor-pointer transition-all duration-150 no-drag hover:scale-105 active:scale-95 shrink-0"
+          className="absolute top-10 left-3.5 z-50 h-11 w-11 rounded-2xl bg-white/90 hover:bg-white dark:bg-[#262626]/95 dark:hover:bg-[#2f2f2f] backdrop-blur-2xl border border-black/[0.08] dark:border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)] text-gray-700 dark:text-gray-200 flex items-center justify-center cursor-pointer transition-all duration-150 no-drag hover:scale-105 active:scale-95 shrink-0"
         >
           <PanelLeft size={16} />
         </button>
@@ -130,8 +140,9 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
           isSidebarOpen ? 'w-[280px] px-3.5' : 'w-0 px-0 pt-0 border-r-0'
         }`}
       >
-        <div className="w-full flex flex-col h-full pt-4">
-          {/* Header row aligned with FloatingToolbar level (top-4, h-11) */}
+        {/* Dedicated top padding (pt-10 = 40px) to clear macOS traffic light buttons */}
+        <div className="w-full flex flex-col h-full pt-10">
+          {/* Header row aligned with FloatingToolbar level (top-10, h-11) */}
           <div className="h-11 flex items-center justify-between relative mb-3 pb-3 border-b border-black/[0.06] dark:border-white/[0.08]">
             <div ref={dropdownRef} className="relative flex-1 min-w-0 mr-2">
               <button
@@ -139,7 +150,7 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="w-full h-11 px-3 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-800 dark:text-gray-200 text-xs font-medium flex items-center gap-2 transition cursor-pointer border border-black/[0.04] dark:border-white/[0.06]"
               >
-                <img src="/logo.png" alt="Inkwell" className="w-5 h-5 object-contain rounded shrink-0" />
+                <Notebook size={15} strokeWidth={2} className="text-gray-700 dark:text-gray-200 shrink-0" />
                 <div className="flex items-center min-w-0 text-left flex-1">
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-xs truncate">
                     {activeNotebook?.name ?? 'Notebook'}
@@ -161,8 +172,10 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                         <div
                           key={nb.id}
                           onClick={() => {
-                            setActiveNotebook(nb.id);
-                            setIsDropdownOpen(false);
+                            if (renamingNotebookId !== nb.id) {
+                              setActiveNotebook(nb.id);
+                              setIsDropdownOpen(false);
+                            }
                           }}
                           className={`w-full h-11 px-2.5 rounded-lg text-left flex items-center justify-between group transition-colors cursor-pointer ${
                             isActive
@@ -176,33 +189,94 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                               strokeWidth={2}
                               className={isActive ? 'text-black dark:text-white shrink-0' : 'text-gray-400 dark:text-gray-500 shrink-0'}
                             />
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-xs truncate font-medium text-gray-900 dark:text-gray-100 leading-tight">
-                                {nb.name}
-                              </span>
-                              <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
-                                {nb.sections.length} {nb.sections.length === 1 ? 'section' : 'sections'}
-                              </span>
-                            </div>
+                            {renamingNotebookId === nb.id ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                value={renameNotebookInput}
+                                onChange={(e) => setRenameNotebookInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const trimmed = renameNotebookInput.trim();
+                                    if (trimmed) renameNotebook(nb.id, trimmed);
+                                    setRenamingNotebookId(null);
+                                  } else if (e.key === 'Escape') {
+                                    setRenamingNotebookId(null);
+                                  }
+                                }}
+                                onBlur={() => {
+                                  const trimmed = renameNotebookInput.trim();
+                                  if (trimmed) renameNotebook(nb.id, trimmed);
+                                  setRenamingNotebookId(null);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full text-xs font-medium px-1.5 py-0.5 rounded bg-white dark:bg-[#1a1a1a] border border-blue-500 text-gray-900 dark:text-gray-100 focus:outline-none"
+                              />
+                            ) : (
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-xs truncate font-medium text-gray-900 dark:text-gray-100 leading-tight">
+                                  {nb.name}
+                                </span>
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
+                                  {nb.sections.length} {nb.sections.length === 1 ? 'section' : 'sections'}
+                                </span>
+                              </div>
+                            )}
                           </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
-                            {/* Delete Notebook Button on Hover */}
+                          <div className="flex items-center gap-1 shrink-0 relative">
+                            {/* 3 horizontal dots menu - always visible */}
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setConfirmDelete({
-                                  type: 'notebook',
-                                  id: nb.id,
-                                  name: nb.name,
-                                });
+                                setMenuNotebookId(menuNotebookId === nb.id ? null : nb.id);
                               }}
-                              title="Delete Notebook"
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-500/20 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition cursor-pointer"
+                              title="Notebook options"
+                              className="p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/[0.06] dark:hover:bg-white/[0.1] transition cursor-pointer"
                             >
-                              <Trash2 size={12} />
+                              <MoreHorizontal size={13} />
                             </button>
+
+                            {menuNotebookId === nb.id && (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-white/95 dark:bg-[#2A2A2A]/98 backdrop-blur-2xl shadow-xl border border-black/10 dark:border-white/10 p-1 z-50 animate-fade-in no-drag"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuNotebookId(null);
+                                    setRenamingNotebookId(nb.id);
+                                    setRenameNotebookInput(nb.name);
+                                  }}
+                                  className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center gap-2 cursor-pointer font-medium"
+                                >
+                                  <Pencil size={12} className="text-gray-500 dark:text-gray-400" />
+                                  <span>Rename</span>
+                                </button>
+                                {notebooks.length > 1 && (
+                                  <>
+                                    <div className="border-t border-black/[0.06] dark:border-white/[0.08] my-0.5" />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setMenuNotebookId(null);
+                                        setConfirmDelete({
+                                          type: 'notebook',
+                                          id: nb.id,
+                                          name: nb.name,
+                                        });
+                                      }}
+                                      className="w-full px-2 py-1.5 rounded-lg text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-500/10 dark:hover:bg-red-500/20 transition flex items-center gap-2 cursor-pointer font-medium"
+                                    >
+                                      <Trash2 size={12} />
+                                      <span>Delete</span>
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            )}
 
                             {/* Active checkmark */}
                             {isActive && (

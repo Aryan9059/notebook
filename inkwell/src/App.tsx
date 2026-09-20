@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, type ChangeEvent } from 'react';
 import { useNotesStore } from './store/useNotesStore';
 import { useUiStore } from './store/useUiStore';
 import { collectGarbage, putPageImage } from './store/imageStore';
+import { initDocumentsStorage, saveNotebooksToDisk } from './services/storageService';
 import { StartScreen } from './components/Screens/StartScreen';
 import { CreateNotebookDialog } from './components/Screens/CreateNotebookDialog';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -42,31 +43,37 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // §7: Run collectGarbage once on app start only when hydrated notebooks exist
+  // Initialize permanent ~/Documents/Notebook filesystem storage and hydrate notebooks
   useEffect(() => {
-    const nbs = useNotesStore.getState().notebooks;
-    if (nbs && nbs.length > 0) {
-      const liveKeys = new Set<string>();
-      for (const nb of nbs) {
-        for (const sec of nb.sections) {
-          for (const el of sec.elements) {
-            if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
-              liveKeys.add(el.imageKey);
+    initDocumentsStorage()
+      .then(async () => {
+        await useNotesStore.getState().hydrateFromDisk();
+        const nbs = useNotesStore.getState().notebooks;
+        if (nbs && nbs.length > 0) {
+          const liveKeys = new Set<string>();
+          for (const nb of nbs) {
+            for (const sec of nb.sections) {
+              for (const el of sec.elements) {
+                if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
+                  liveKeys.add(el.imageKey);
+                }
+              }
             }
           }
+          collectGarbage(liveKeys).catch(console.error);
         }
-      }
-      collectGarbage(liveKeys).catch(console.error);
-    }
+      })
+      .catch((err) => console.error('Error initializing Documents storage:', err));
   }, []);
 
-  // Ensure any in-progress note editing is safely committed when quitting/unloading
+  // Ensure any in-progress note editing and state is safely flushed to disk on quit/unload
   useEffect(() => {
     const handleBeforeUnload = () => {
       const { editingId, setEditingId } = useUiStore.getState();
       if (editingId) {
         setEditingId(null);
       }
+      saveNotebooksToDisk(useNotesStore.getState().notebooks).catch(console.error);
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -363,7 +370,7 @@ export default function App() {
   return (
     <div className="w-full h-full flex flex-row bg-canvas select-none relative overflow-hidden">
       {/* Titlebar drag region for macOS Overlay */}
-      <div className="fixed top-0 left-0 right-0 h-7 drag-region z-50 pointer-events-none" />
+      <div className="fixed top-0 left-0 right-0 h-10 drag-region z-50 pointer-events-none" />
 
       {/* Hidden PDF file input */}
       <input

@@ -55,7 +55,7 @@ export const CreateNotebookDialog: FC<CreateNotebookDialogProps> = ({
           <div className="flex items-center gap-3.5">
             <img
               src="/logo.png"
-              alt="Inkwell"
+              alt="Notebook"
               className="w-11 h-11 rounded-2xl object-contain shadow-md shrink-0"
             />
             <div>

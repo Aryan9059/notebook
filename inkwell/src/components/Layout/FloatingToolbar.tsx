@@ -157,17 +157,7 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
   };
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 h-11 flex items-center gap-2 rounded-2xl bg-white/90 dark:bg-[#262626]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.1] shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)] px-2.5 py-1.5 select-none no-drag transition-colors max-w-[calc(100vw-2rem)]">
-      {/* App Logo branding */}
-      <div className="flex items-center gap-1.5 pl-1 pr-0.5 shrink-0" title="Inkwell">
-        <img
-          src="/logo.png"
-          alt="Inkwell"
-          className="w-5 h-5 object-contain rounded shrink-0"
-        />
-      </div>
-      <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 shrink-0" />
-
+    <div className="absolute top-10 left-1/2 -translate-x-1/2 z-40 h-11 flex items-center gap-2 rounded-2xl bg-white/90 dark:bg-[#262626]/95 backdrop-blur-2xl border border-black/[0.08] dark:border-white/[0.1] shadow-[0_8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_30px_rgba(0,0,0,0.35)] px-2.5 py-1.5 select-none no-drag transition-colors max-w-[calc(100vw-2rem)]">
       {/* Add PDF button */}
       <button
         type="button"
@@ -383,26 +373,33 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
         </div>
       </div>
 
+      {/* Divider before more options */}
+      <div className="h-4 w-[1px] bg-black/10 dark:bg-white/10 shrink-0 mx-0.5" />
+
       {/* More / Overflow menu */}
-      <div ref={menuRef} className="relative flex items-center shrink-0">
+      <div ref={menuRef} className="relative flex items-center shrink-0 no-drag">
         <button
           type="button"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           title="More options"
-          className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-gray-100/80 dark:hover:bg-white/[0.08] transition text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white cursor-pointer"
+          className={`w-8 h-8 rounded-xl flex items-center justify-center transition cursor-pointer border shrink-0 no-drag ${
+            isMenuOpen
+              ? 'bg-black text-white dark:bg-white dark:text-black border-transparent shadow-xs'
+              : 'bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#333333] dark:hover:bg-[#3e3e3e] active:scale-95 text-gray-700 dark:text-gray-200 border-black/[0.04] dark:border-white/[0.06]'
+          }`}
         >
-          <MoreVertical size={16} />
+          <MoreVertical size={15} />
         </button>
 
         {isMenuOpen && (
-          <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-white/95 dark:bg-[#262626]/98 backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.14)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.45)] border border-black/[0.08] dark:border-white/[0.1] p-1.5 z-50 animate-fade-in">
+          <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-white/95 dark:bg-[#262626]/98 backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.5)] border border-black/[0.08] dark:border-white/[0.1] p-1.5 z-50 animate-fade-in no-drag">
             {/* Dark Mode Toggle Button */}
             <button
               type="button"
               onClick={() => {
                 toggleTheme();
               }}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium"
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium no-drag"
             >
               <div className="flex items-center gap-2">
                 {theme === 'dark' ? (
@@ -425,7 +422,7 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
                 setIsMenuOpen(false);
                 onExportPdfClick?.();
               }}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium"
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium no-drag"
             >
               <div className="flex items-center gap-2">
                 <Download size={14} className="text-gray-500 dark:text-gray-400" />
@@ -438,7 +435,7 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
                 resetViewport();
                 setIsMenuOpen(false);
               }}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium"
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 dark:text-gray-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.08] transition flex items-center justify-between cursor-pointer font-medium no-drag"
             >
               <div className="flex items-center gap-2">
                 <RotateCcw size={14} className="text-gray-500 dark:text-gray-400" />
@@ -450,7 +447,7 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
             <button
               type="button"
               onClick={handleClearCanvas}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-500/10 dark:hover:bg-red-500/20 transition flex items-center gap-2 cursor-pointer font-medium"
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-500/10 dark:hover:bg-red-500/20 transition flex items-center gap-2 cursor-pointer font-medium no-drag"
             >
               <Trash2 size={14} />
               <span>Clear Canvas</span>

@@ -9,6 +9,7 @@ import {
 } from '../types.ts';
 import { deletePageImage } from './imageStore.ts';
 import { calculateTargetZoom } from '../utils/canvasMath.ts';
+import { saveNotebooksToDisk, loadNotebooksFromDisk } from '../services/storageService.ts';
 
 const MAX_UNDO_STEPS = 50;
 
@@ -52,6 +53,7 @@ interface NotesState {
 
   // Import / Export helper
   setNotebooks: (notebooks: Notebook[]) => void;
+  hydrateFromDisk: () => Promise<void>;
 }
 
 function cloneElements(elements: CanvasElement[]): CanvasElement[] {
@@ -614,6 +616,32 @@ export const useNotesStore = create<NotesState>()(
           activeSectionId: notebooks[0]?.sections[0]?.id ?? null,
         });
       },
+
+      hydrateFromDisk: async () => {
+        try {
+          const diskNotebooks = await loadNotebooksFromDisk();
+          if (diskNotebooks && diskNotebooks.length > 0) {
+            const currentNotebooks = get().notebooks;
+            // If local storage is empty or reinstalled, restore completely from disk
+            if (!currentNotebooks || currentNotebooks.length === 0) {
+              set({
+                notebooks: diskNotebooks,
+                activeNotebookId: diskNotebooks[0].id,
+                activeSectionId: diskNotebooks[0].sections[0]?.id ?? null,
+              });
+            } else {
+              // Merge any books from disk that might be missing locally
+              const localIds = new Set(currentNotebooks.map((n) => n.id));
+              const missingFromLocal = diskNotebooks.filter((n) => !localIds.has(n.id));
+              if (missingFromLocal.length > 0) {
+                set({ notebooks: [...currentNotebooks, ...missingFromLocal] });
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[STORAGE] hydrateFromDisk failed:', err);
+        }
+      },
     }),
     {
       name: 'inkwell-v1',
@@ -634,6 +662,12 @@ export const useNotesStore = create<NotesState>()(
           console.error('[STORAGE] Persist rehydration error:', error);
           return;
         }
+
+        // Auto hydrate from Documents/Notebook if local state is missing or empty
+        setTimeout(() => {
+          useNotesStore.getState().hydrateFromDisk().catch(console.error);
+        }, 50);
+
         if (state) {
           // Ensure active notebook and active section IDs point to valid existing entities
           const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
@@ -651,6 +685,17 @@ export const useNotesStore = create<NotesState>()(
     }
   )
 );
+
+// Auto-save debounced subscriber to persist all changes to ~/Documents/Notebook/notebooks.json
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+useNotesStore.subscribe((state) => {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    saveNotebooksToDisk(state.notebooks).catch((err) => {
+      console.warn('[STORAGE] Failed to auto-save to Documents:', err);
+    });
+  }, 350);
+});
 
 // Selector helpers
 export const useActiveNotebook = () =>

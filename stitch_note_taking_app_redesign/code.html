@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="paperGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FAF9F6"/>
+      <stop offset="100%" stop-color="#F1ECE1"/>
+    </linearGradient>
+    <linearGradient id="coverDark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#23211F"/>
+      <stop offset="100%" stop-color="#141312"/>
+    </linearGradient>
+    <linearGradient id="foldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#DCD4C4"/>
+      <stop offset="100%" stop-color="#C2B7A3"/>
+    </linearGradient>
+    <filter id="subtleShadow" x="-10%" y="-10%" width="125%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#181512" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- App Icon Base Surface -->
+  <rect width="512" height="512" rx="116" fill="url(#paperGrad)"/>
+  <rect x="20" y="20" width="472" height="472" rx="96" fill="none" stroke="#E3DCD0" stroke-width="2"/>
+
+  <!-- Center Notebook Mark: Layered Notebook & Turned Corner with ruled lines -->
+  <g transform="translate(144, 126)" filter="url(#subtleShadow)">
+    <!-- Back Notebook Page / Offset Shadow Sheet -->
+    <path d="M 28, 8 
+             L 214, 8 
+             C 220, 8 224, 12 224, 18 
+             L 224, 252 
+             C 224, 258 220, 262 214, 262 
+             L 28, 262 
+             C 22, 262 18, 258 18, 252 
+             L 18, 18 
+             C 18, 12 22, 8 28, 8 Z" 
+          fill="#D6CEBE" opacity="0.6"/>
+
+    <!-- Main Front Notebook / Writing Sheet -->
+    <!-- Dimensions: 200 x 256, Top-Right Corner is folded neatly (48x48) -->
+    <path d="M 10, 0 
+             L 152, 0 
+             L 200, 48 
+             L 200, 244 
+             C 200, 250 195, 254 189, 254 
+             L 10, 254 
+             C 4, 254 0, 250 0, 244 
+             L 0, 10 
+             C 0, 4 4, 0 10, 0 Z" 
+          fill="url(#coverDark)"/>
+
+    <!-- Geometric Turned / Folded Corner -->
+    <path d="M 152, 0 
+             L 152, 40 
+             C 152, 45 155, 48 160, 48 
+             L 200, 48 Z" 
+          fill="url(#foldGrad)"/>
+    <path d="M 152, 0 L 200, 48" stroke="#141312" stroke-width="2" opacity="0.3"/>
+
+    <!-- Minimal Clean Note Ruled Lines (Horizontal notes) -->
+    <!-- Line 1 (Header line, shorter) -->
+    <rect x="42" y="74" width="76" height="7" rx="3.5" fill="#FAF9F6" opacity="0.95"/>
+    <!-- Line 2 -->
+    <rect x="42" y="108" width="116" height="6" rx="3" fill="#FAF9F6" opacity="0.75"/>
+    <!-- Line 3 -->
+    <rect x="42" y="136" width="116" height="6" rx="3" fill="#FAF9F6" opacity="0.75"/>
+    <!-- Line 4 -->
+    <rect x="42" y="164" width="94" height="6" rx="3" fill="#FAF9F6" opacity="0.75"/>
+
+    <!-- Subtle warm terracotta / amber bookmark ribbon accent tail emerging from bottom -->
+    <path d="M 52, 254 L 68, 254 L 68, 282 L 60, 274 L 52, 282 Z" fill="#C86A4B"/>
+  </g>
+</svg>
