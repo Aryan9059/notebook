@@ -1,10 +1,8 @@
 import { FC, useState, useEffect } from 'react';
-import { Plus, FolderOpen, Notebook, Clock, Trash2, MoreHorizontal, Pencil } from 'lucide-react';
+import { Plus, Notebook, Clock, Trash2, MoreHorizontal, Pencil } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { CreateNotebookDialog } from './CreateNotebookDialog';
 import { ConfirmDialog } from '../Common/ConfirmDialog';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { importNotebookBundle } from '../../utils/bundle';
 
 function formatRelativeDate(timestamp: number): string {
   const now = Date.now();
@@ -44,45 +42,6 @@ export const StartScreen: FC = () => {
     }
     return () => window.removeEventListener('click', handleCloseMenu);
   }, [openMenuId]);
-
-  const handleOpenExisting = async () => {
-    try {
-      const selected = await openDialog({
-        multiple: false,
-        filters: [{ name: 'Notebook', extensions: ['notebook.json', 'inkwell.json', 'json'] }],
-      });
-      if (selected && typeof selected === 'string') {
-        const imported = await importNotebookBundle(selected);
-        useNotesStore.setState((state) => ({
-          notebooks: [imported, ...state.notebooks.filter((nb) => nb.id !== imported.id)],
-          activeNotebookId: imported.id,
-          activeSectionId: imported.sections[0]?.id ?? null,
-        }));
-      }
-    } catch (err) {
-      console.warn('Native dialog open failed, falling back to browser picker:', err);
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.json,.inkwell.json';
-      input.onchange = async (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (file) {
-          try {
-            const imported = await importNotebookBundle(file);
-            useNotesStore.setState((state) => ({
-              notebooks: [imported, ...state.notebooks.filter((nb) => nb.id !== imported.id)],
-              activeNotebookId: imported.id,
-              activeSectionId: imported.sections[0]?.id ?? null,
-            }));
-          } catch (importErr) {
-            console.error('Failed to import bundle:', importErr);
-            alert('Failed to parse notebook bundle.');
-          }
-        }
-      };
-      input.click();
-    }
-  };
 
   const recentNotebooks = [...notebooks].sort((a, b) => b.updatedAt - a.updatedAt);
 
@@ -142,27 +101,7 @@ export const StartScreen: FC = () => {
             </div>
           </div>
 
-          {/* Card 2: Existing notebook */}
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={handleOpenExisting}
-            className="h-[210px] rounded-2xl bg-white/90 dark:bg-[#262626] hover:bg-white dark:hover:bg-[#2F2F2F] border border-black/[0.08] dark:border-white/[0.1] hover:border-black/30 dark:hover:border-white/30 shadow-[0_4px_20px_rgba(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.5)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
-          >
-            <div className="w-12 h-12 rounded-2xl bg-gray-800 dark:bg-[#383838] text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-200">
-              <FolderOpen size={22} strokeWidth={2} />
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 group-hover:text-black dark:group-hover:text-white transition-colors">
-                Open Existing
-              </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Import an .inkwell.json file
-              </p>
-            </div>
-          </div>
-
-          {/* Cards 3...n: Recent notebooks or placeholder */}
+          {/* Cards 2...n: Recent notebooks or placeholder */}
           {recentNotebooks.length === 0 ? (
             <div className="h-[210px] rounded-2xl border-2 border-dashed border-gray-200/90 dark:border-white/10 p-6 flex flex-col items-center justify-center text-center select-none no-drag">
               <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-[#2A2A2A] text-gray-400 flex items-center justify-center mb-2.5">
@@ -324,6 +263,9 @@ export const StartScreen: FC = () => {
           if (confirmDelete) {
             await deleteNotebook(confirmDelete.id);
             setConfirmDelete(null);
+            window.dispatchEvent(
+              new CustomEvent('inkwell-toast', { detail: 'Notebook deleted' })
+            );
           }
         }}
         onCancel={() => setConfirmDelete(null)}

@@ -3,15 +3,31 @@ import {
   saveImageToDisk,
   loadImageFromDisk,
   deleteImageFromDisk,
+  getNotebookFolderName,
 } from '../services/storageService';
+import { useNotesStore } from './useNotesStore';
 
 const urlCache = new Map<string, string>();
+
+function getActiveNotebookFolderName(): string | undefined {
+  try {
+    const state = useNotesStore.getState();
+    const activeNb = state.notebooks.find((n) => n.id === state.activeNotebookId);
+    if (activeNb) {
+      return getNotebookFolderName(activeNb);
+    }
+  } catch {
+    // Store might not be ready yet
+  }
+  return undefined;
+}
 
 export async function putPageImage(key: string, blob: Blob) {
   // Save to IndexedDB for quick local access
   await set(key, blob);
-  // Also persist to ~/Documents/Notebook/images/ so it survives app reinstalls
-  saveImageToDisk(key, blob).catch((err) => {
+  // Also persist to ~/Documents/Notebook/<Notebook_Name>/images/ so it survives app reinstalls
+  const folder = getActiveNotebookFolderName();
+  saveImageToDisk(key, blob, folder).catch((err) => {
     console.warn('[ImageStore] Failed to persist image to Documents:', err);
   });
 }
@@ -24,7 +40,8 @@ export async function getPageImageUrl(key: string): Promise<string | null> {
   let blob = await get<Blob>(key);
   if (!blob) {
     // If not found in IndexedDB (e.g., after app reinstall), recover from Documents
-    blob = (await loadImageFromDisk(key)) ?? undefined;
+    const folder = getActiveNotebookFolderName();
+    blob = (await loadImageFromDisk(key, folder)) ?? undefined;
     if (blob) {
       await set(key, blob);
     }
@@ -39,7 +56,8 @@ export async function getPageImageUrl(key: string): Promise<string | null> {
 export async function getPageBlob(key: string): Promise<Blob | null> {
   let blob = await get<Blob>(key);
   if (!blob) {
-    blob = (await loadImageFromDisk(key)) ?? undefined;
+    const folder = getActiveNotebookFolderName();
+    blob = (await loadImageFromDisk(key, folder)) ?? undefined;
     if (blob) {
       await set(key, blob);
     }
@@ -54,7 +72,8 @@ export async function deletePageImage(key: string) {
     urlCache.delete(key);
   }
   await del(key);
-  await deleteImageFromDisk(key);
+  const folder = getActiveNotebookFolderName();
+  await deleteImageFromDisk(key, folder);
 }
 
 /** Run once on app start: drop IDB blobs no element references anymore. */

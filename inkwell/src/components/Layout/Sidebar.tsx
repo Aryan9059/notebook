@@ -113,6 +113,7 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
       }
     } else if (confirmDelete.type === 'notebook') {
       await deleteNotebook(confirmDelete.id);
+      window.dispatchEvent(new CustomEvent('inkwell-toast', { detail: 'Notebook deleted' }));
       if (notebooks.length <= 1) {
         onGoToStartScreen?.();
       }

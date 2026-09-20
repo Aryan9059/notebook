@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ToolMode, UiState } from '../types';
+import { CanvasElement, ToolMode, UiState } from '../types';
 
 interface UiStore extends UiState {
   setSelectedId: (id: string | null) => void;
@@ -12,6 +12,9 @@ interface UiStore extends UiState {
   setIsImporting: (isImporting: boolean) => void;
   setImportProgress: (progress: { done: number; total: number } | null) => void;
   setActiveTool: (tool: ToolMode) => void;
+  setClipboardElements: (elements: CanvasElement[] | null) => void;
+  incrementPasteCount: () => void;
+  resetPasteCount: () => void;
   resetUi: () => void;
 }
 
@@ -23,6 +26,8 @@ const initialState: UiState = {
   isImporting: false,
   importProgress: null,
   activeTool: 'select',
+  clipboardElements: null,
+  pasteCount: 0,
 };
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -59,6 +64,8 @@ export const useUiStore = create<UiStore>((set) => ({
   setIsImporting: (isImporting) => set({ isImporting }),
   setImportProgress: (importProgress) => set({ importProgress }),
   setActiveTool: (activeTool) => set({ activeTool }),
+  setClipboardElements: (clipboardElements) => set({ clipboardElements, pasteCount: 0 }),
+  incrementPasteCount: () => set((state) => ({ pasteCount: (state.pasteCount || 0) + 1 })),
+  resetPasteCount: () => set({ pasteCount: 0 }),
   resetUi: () => set(initialState),
 }));
-

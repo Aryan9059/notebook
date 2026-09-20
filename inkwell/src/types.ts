@@ -3,6 +3,7 @@ export const SCHEMA_VERSION = 1;
 export interface Notebook {
   id: string;
   name: string;
+  folderName?: string;
   folderPath?: string;
   createdAt: number;
   updatedAt: number;
@@ -86,4 +87,6 @@ export interface UiState {
   isImporting: boolean;
   importProgress: { done: number; total: number } | null;
   activeTool: ToolMode;
+  clipboardElements?: CanvasElement[] | null;
+  pasteCount?: number;
 }

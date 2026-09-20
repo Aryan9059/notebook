@@ -532,8 +532,10 @@ export async function exportSectionToPdf(
     if (savePath) {
       const buffer = doc.output('arraybuffer');
       await writeFile(savePath, new Uint8Array(buffer));
+      window.dispatchEvent(new CustomEvent('inkwell-toast', { detail: 'PDF exported successfully' }));
     }
   } else {
     doc.save(defaultFilename);
+    window.dispatchEvent(new CustomEvent('inkwell-toast', { detail: 'PDF exported successfully' }));
   }
 }

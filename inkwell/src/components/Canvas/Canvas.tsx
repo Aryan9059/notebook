@@ -17,7 +17,7 @@ import {
   getDotGridStyle,
   screenToCanvas,
 } from '../../utils/canvasMath';
-import { Viewport, ArrowElement } from '../../types';
+import { Viewport, ArrowElement, CanvasElement } from '../../types';
 import { WorldLayer } from './WorldLayer';
 
 interface CanvasProps {
@@ -35,6 +35,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
   });
 
   const addElement = useNotesStore((state) => state.addElement);
+  const addElements = useNotesStore((state) => state.addElements);
   const setViewport = useNotesStore((state) => state.setViewport);
   const resetViewport = useNotesStore((state) => state.resetViewport);
   const zoomIn = useNotesStore((state) => state.zoomIn);
@@ -278,6 +279,60 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     };
   }, [setViewport]);
 
+  // Global clipboard copy listener for canvas elements
+  useEffect(() => {
+    const handleCopy = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const activeEl = document.activeElement as HTMLElement | null;
+      const isInput =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable ||
+        Boolean(target?.closest('.ProseMirror')) ||
+        activeEl?.tagName === 'INPUT' ||
+        activeEl?.tagName === 'TEXTAREA' ||
+        activeEl?.isContentEditable ||
+        Boolean(activeEl?.closest('.ProseMirror'));
+
+      if (isInput || editingId) return;
+
+      const state = useNotesStore.getState();
+      const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+      const currentSec = currentNb?.sections.find((s) => s.id === state.activeSectionId);
+      if (!currentSec) return;
+
+      const currentSelectedId = useUiStore.getState().selectedId;
+      const currentSelectedIds = useUiStore.getState().selectedIds;
+      const selectedSet = new Set([
+        ...(currentSelectedId ? [currentSelectedId] : []),
+        ...currentSelectedIds,
+      ]);
+      const elementsToCopy = currentSec.elements.filter((el) => selectedSet.has(el.id));
+      if (elementsToCopy.length === 0) return;
+
+      e.preventDefault();
+      const serialized = JSON.stringify(elementsToCopy);
+      e.clipboardData?.setData('application/x-notebook-elements', serialized);
+
+      if (elementsToCopy.length === 1 && elementsToCopy[0].type === 'text') {
+        const temp = document.createElement('div');
+        temp.innerHTML = elementsToCopy[0].content;
+        e.clipboardData?.setData('text/plain', temp.textContent || temp.innerText || '');
+      } else {
+        e.clipboardData?.setData('text/plain', `[Notebook Elements (${elementsToCopy.length} items)]`);
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('inkwell-toast', {
+          detail: `Copied ${elementsToCopy.length} item${elementsToCopy.length > 1 ? 's' : ''}`,
+        })
+      );
+    };
+
+    window.addEventListener('copy', handleCopy);
+    return () => window.removeEventListener('copy', handleCopy);
+  }, [editingId]);
+
   // Space key and Tool/Zoom keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -365,6 +420,70 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         if (allElements.length > 0) {
           setSelectedIds(allElements.map((el) => el.id));
         }
+      } else if (
+        (e.metaKey || e.ctrlKey) &&
+        (e.code === 'KeyD' || e.key === 'd' || e.key === 'D') &&
+        !isInput &&
+        !editingId
+      ) {
+        // Cmd+D / Ctrl+D: Duplicate selected element(s)
+        e.preventDefault();
+        const state = useNotesStore.getState();
+        const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+        const currentSec = currentNb?.sections.find((s) => s.id === state.activeSectionId);
+        if (!currentSec) return;
+
+        const currentSelectedId = useUiStore.getState().selectedId;
+        const currentSelectedIds = useUiStore.getState().selectedIds;
+        const selectedSet = new Set([
+          ...(currentSelectedId ? [currentSelectedId] : []),
+          ...currentSelectedIds,
+        ]);
+        const elementsToDuplicate = currentSec.elements.filter((el) => selectedSet.has(el.id));
+        if (elementsToDuplicate.length === 0) return;
+
+        const maxZ = currentSec.elements.reduce((m, el) => Math.max(m, el.zIndex), 100);
+        const offset = 32;
+
+        const duplicatedElements: CanvasElement[] = elementsToDuplicate.map((el, idx) => {
+          const newId = crypto.randomUUID();
+          const newZ = maxZ + 1 + idx;
+
+          if (el.type === 'arrow') {
+            return {
+              ...el,
+              id: newId,
+              startX: el.startX + offset,
+              startY: el.startY + offset,
+              endX: el.endX + offset,
+              endY: el.endY + offset,
+              x: el.x + offset,
+              y: el.y + offset,
+              zIndex: newZ,
+            };
+          }
+
+          return {
+            ...el,
+            id: newId,
+            x: el.x + offset,
+            y: el.y + offset,
+            zIndex: newZ,
+          };
+        });
+
+        addElements(duplicatedElements);
+        if (duplicatedElements.length === 1) {
+          setSelectedId(duplicatedElements[0].id);
+        } else {
+          setSelectedIds(duplicatedElements.map((item) => item.id));
+        }
+
+        window.dispatchEvent(
+          new CustomEvent('inkwell-toast', {
+            detail: `Duplicated ${duplicatedElements.length} item${duplicatedElements.length > 1 ? 's' : ''}`,
+          })
+        );
       } else if (e.key === 'Escape') {
         e.preventDefault();
         if (arrowDraftRef.current) {

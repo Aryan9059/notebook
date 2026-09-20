@@ -11,7 +11,7 @@ import { FloatingToolbar } from './components/Layout/FloatingToolbar';
 import { CanvasElements } from './components/Canvas/CanvasElements';
 import { processPdfFile } from './utils/pdfProcessor';
 import { exportSectionToPdf } from './utils/exportPdf';
-import { ImageElement, TextElement } from './types';
+import { CanvasElement, ImageElement, TextElement } from './types';
 
 export default function App() {
   const activeNotebookId = useNotesStore((state) => state.activeNotebookId);
@@ -28,6 +28,7 @@ export default function App() {
 
   const setEditingId = useUiStore((state) => state.setEditingId);
   const setSelectedId = useUiStore((state) => state.setSelectedId);
+  const setSelectedIds = useUiStore((state) => state.setSelectedIds);
   const isImporting = useUiStore((state) => state.isImporting);
   const importProgress = useUiStore((state) => state.importProgress);
   const setIsImporting = useUiStore((state) => state.setIsImporting);
@@ -43,13 +44,37 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  useEffect(() => {
+    const onToast = (e: Event) => {
+      const customEv = e as CustomEvent<string>;
+      if (customEv.detail) {
+        showToast(customEv.detail);
+      }
+    };
+    window.addEventListener('inkwell-toast', onToast);
+    return () => window.removeEventListener('inkwell-toast', onToast);
+  }, []);
+
   // Initialize permanent ~/Documents/Notebook filesystem storage and hydrate notebooks
   useEffect(() => {
     initDocumentsStorage()
       .then(async () => {
         await useNotesStore.getState().hydrateFromDisk();
-        const nbs = useNotesStore.getState().notebooks;
+        const state = useNotesStore.getState();
+        const nbs = state.notebooks;
         if (nbs && nbs.length > 0) {
+          // Guarantee the app opens directly with the last active or recent notebook, never the home screen
+          if (!state.activeNotebookId || !nbs.some((n) => n.id === state.activeNotebookId)) {
+            const lastSavedId = localStorage.getItem('inkwell_last_opened_notebook');
+            const found = nbs.find((n) => n.id === lastSavedId);
+            const target = found || [...nbs].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))[0];
+            if (target) {
+              state.setActiveNotebook(target.id);
+            }
+          }
+
+          // Persist notebooks to ~/Documents/Notebook
+          await saveNotebooksToDisk(nbs);
           const liveKeys = new Set<string>();
           for (const nb of nbs) {
             for (const sec of nb.sections) {
@@ -212,7 +237,7 @@ export default function App() {
     }
   };
 
-  // Global Clipboard Paste Handler (Screenshots & Text directly to canvas)
+  // Global Clipboard Paste Handler (Priority 1: Screenshot/Image, Priority 2: Canvas Elements, Priority 3: Plain text)
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -234,7 +259,7 @@ export default function App() {
       const clipboardData = e.clipboardData;
       if (!clipboardData) return;
 
-      // 1. Check for image files in clipboard (e.g. screenshots)
+      // 1. Check for image files in clipboard (e.g. screenshots taken via Cmd+Shift+4)
       let imageFile: File | null = null;
       const items = clipboardData.items;
 
@@ -306,9 +331,91 @@ export default function App() {
         return;
       }
 
-      // 2. Check for text in clipboard
+      // 2. Check for copied in-app canvas elements
+      const rawElements = clipboardData.getData('application/x-notebook-elements');
+      if (rawElements) {
+        try {
+          const parsed = JSON.parse(rawElements) as CanvasElement[];
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            e.preventDefault();
+
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const el of parsed) {
+              if (el.type === 'arrow') {
+                minX = Math.min(minX, el.startX, el.endX);
+                minY = Math.min(minY, el.startY, el.endY);
+                maxX = Math.max(maxX, el.startX, el.endX);
+                maxY = Math.max(maxY, el.startY, el.endY);
+              } else {
+                minX = Math.min(minX, el.x);
+                minY = Math.min(minY, el.y);
+                maxX = Math.max(maxX, el.x + (el.width || 0));
+                maxY = Math.max(maxY, el.y + (el.height || 0));
+              }
+            }
+            const groupCenterX = (minX + maxX) / 2;
+            const groupCenterY = (minY + maxY) / 2;
+
+            const container = document.getElementById('infinite-canvas-container');
+            const rect = container?.getBoundingClientRect() ?? {
+              width: window.innerWidth - 280,
+              height: window.innerHeight,
+            };
+            const canvasCenterX = (rect.width / 2 - activeSection.viewport.x) / activeSection.viewport.zoom;
+            const canvasCenterY = (rect.height / 2 - activeSection.viewport.y) / activeSection.viewport.zoom;
+
+            let dx = 32;
+            let dy = 32;
+            const dist = Math.hypot(canvasCenterX - groupCenterX, canvasCenterY - groupCenterY);
+            if (dist > 350) {
+              dx = Math.round(canvasCenterX - groupCenterX);
+              dy = Math.round(canvasCenterY - groupCenterY);
+            }
+
+            const maxZ = activeSection.elements.reduce((m, el) => Math.max(m, el.zIndex), 100);
+
+            const newElements: CanvasElement[] = parsed.map((el, idx) => {
+              const newId = crypto.randomUUID();
+              const newZ = maxZ + 1 + idx;
+              if (el.type === 'arrow') {
+                return {
+                  ...el,
+                  id: newId,
+                  startX: el.startX + dx,
+                  startY: el.startY + dy,
+                  endX: el.endX + dx,
+                  endY: el.endY + dy,
+                  x: el.x + dx,
+                  y: el.y + dy,
+                  zIndex: newZ,
+                };
+              }
+              return {
+                ...el,
+                id: newId,
+                x: el.x + dx,
+                y: el.y + dy,
+                zIndex: newZ,
+              };
+            });
+
+            addElements(newElements);
+            if (newElements.length === 1) {
+              setSelectedId(newElements[0].id);
+            } else {
+              setSelectedIds(newElements.map((item) => item.id));
+            }
+            showToast(`Pasted ${newElements.length} item${newElements.length > 1 ? 's' : ''}`);
+            return;
+          }
+        } catch (err) {
+          console.warn('Failed to parse application/x-notebook-elements:', err);
+        }
+      }
+
+      // 3. Check for plain text in clipboard (from other apps or browsers)
       const pastedText = clipboardData.getData('text/plain');
-      if (pastedText && pastedText.trim()) {
+      if (pastedText && pastedText.trim() && !pastedText.startsWith('[Notebook Elements')) {
         e.preventDefault();
         const container = document.getElementById('infinite-canvas-container');
         const rect = container?.getBoundingClientRect() ?? {
@@ -345,7 +452,7 @@ export default function App() {
 
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [activeNotebookId, activeSection, addElement, setSelectedId]);
+  }, [activeNotebookId, activeSection, addElement, addElements, setSelectedId, setSelectedIds]);
 
   // Export current section to PDF
   const handleExportPdfClick = async () => {
@@ -362,80 +469,82 @@ export default function App() {
     }
   };
 
-  // If no notebook is active, render StartScreen
-  if (!activeNotebookId || !activeNotebook) {
-    return <StartScreen />;
-  }
-
   return (
-    <div className="w-full h-full flex flex-row bg-canvas select-none relative overflow-hidden">
-      {/* Titlebar drag region for macOS Overlay */}
-      <div className="fixed top-0 left-0 right-0 h-10 drag-region z-50 pointer-events-none" />
+    <>
+      {/* Global In-app Notification Toast */}
+      {toastMessage && (
+        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-[9999] px-5 py-2.5 rounded-2xl bg-gray-900/90 dark:bg-[#1E1E1E]/95 text-white dark:text-gray-100 text-xs font-medium backdrop-blur-xl shadow-2xl border border-white/15 dark:border-white/10 pointer-events-none flex items-center gap-2 animate-slide-down">
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
-      {/* Hidden PDF file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="application/pdf"
-        onChange={handlePdfFileChange}
-        className="hidden"
-      />
+      {/* If no notebook is active, render StartScreen */}
+      {!activeNotebookId || !activeNotebook ? (
+        <StartScreen />
+      ) : (
+        <div className="w-full h-full flex flex-row bg-canvas select-none relative overflow-hidden">
+          {/* Titlebar drag region for macOS Overlay */}
+          <div className="fixed top-0 left-0 right-0 h-10 drag-region z-50 pointer-events-none" />
 
-      {/* Hidden Image attachment input */}
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={handleImageFileChange}
-        className="hidden"
-      />
+          {/* Hidden PDF file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={handlePdfFileChange}
+            className="hidden"
+          />
 
-      {/* Sidebar */}
-      <Sidebar
-        onNewNotebookClick={() => setIsCreateModalOpen(true)}
-        onGoToStartScreen={() => setActiveNotebook(null)}
-      />
+          {/* Hidden Image attachment input */}
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleImageFileChange}
+            className="hidden"
+          />
 
-      {/* Canvas Area (floating toolbar is centered over this region) */}
-      <main className="flex-1 h-full relative overflow-hidden">
-        {/* Floating Toolbar centered over canvas */}
-        <FloatingToolbar
-          onAddPdfClick={handleAddPdfClick}
-          onAddImageClick={handleAddImageClick}
-          onExportPdfClick={handleExportPdfClick}
-        />
+          {/* Sidebar */}
+          <Sidebar
+            onNewNotebookClick={() => setIsCreateModalOpen(true)}
+            onGoToStartScreen={() => setActiveNotebook(null)}
+          />
 
-        {/* In-app Notification Toast */}
-        {toastMessage && (
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-2xl bg-gray-900/90 dark:bg-[#1E1E1E]/95 text-white dark:text-gray-100 text-xs font-medium backdrop-blur-xl shadow-2xl border border-white/15 dark:border-white/10 pointer-events-none flex items-center gap-2 animate-slide-down">
-            <span>{toastMessage}</span>
-          </div>
-        )}
+          {/* Canvas Area (floating toolbar is centered over this region) */}
+          <main className="flex-1 h-full relative overflow-hidden">
+            {/* Floating Toolbar centered over canvas */}
+            <FloatingToolbar
+              onAddPdfClick={handleAddPdfClick}
+              onAddImageClick={handleAddImageClick}
+              onExportPdfClick={handleExportPdfClick}
+            />
 
-        {/* Async Import Progress Pill — Dynamic Island style */}
-        {isImporting && importProgress && (
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full bg-gray-900/90 dark:bg-[#1E1E1E]/95 text-white dark:text-gray-100 text-xs font-medium backdrop-blur-xl shadow-2xl border border-white/10 pointer-events-none flex items-center gap-3 animate-slide-down">
-            <span className="w-2 h-2 rounded-full bg-white animate-ping shrink-0" />
-            <span>
-              Importing page {importProgress.done} of {importProgress.total}…
-            </span>
-          </div>
-        )}
+            {/* Async Import Progress Pill — Dynamic Island style */}
+            {isImporting && importProgress && (
+              <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full bg-gray-900/90 dark:bg-[#1E1E1E]/95 text-white dark:text-gray-100 text-xs font-medium backdrop-blur-xl shadow-2xl border border-white/10 pointer-events-none flex items-center gap-3 animate-slide-down">
+                <span className="w-2 h-2 rounded-full bg-white animate-ping shrink-0" />
+                <span>
+                  Importing page {importProgress.done} of {importProgress.total}…
+                </span>
+              </div>
+            )}
 
-        {/* Infinite Canvas */}
-        <Canvas onDoubleClickCanvas={handleDoubleClickCanvas}>
-          <CanvasElements onDoubleClickCanvas={handleDoubleClickCanvas} />
-        </Canvas>
-      </main>
+            {/* Infinite Canvas */}
+            <Canvas onDoubleClickCanvas={handleDoubleClickCanvas}>
+              <CanvasElements onDoubleClickCanvas={handleDoubleClickCanvas} />
+            </Canvas>
+          </main>
 
-      {/* New Notebook Dialog when triggered from workspace sidebar */}
-      <CreateNotebookDialog
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onCreate={(name) => createNotebook(name)}
-      />
-    </div>
+          {/* New Notebook Dialog when triggered from workspace sidebar */}
+          <CreateNotebookDialog
+            isOpen={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            onCreate={(name) => createNotebook(name)}
+          />
+        </div>
+      )}
+    </>
   );
 }
 

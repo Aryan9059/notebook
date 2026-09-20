@@ -9,7 +9,12 @@ import {
 } from '../types.ts';
 import { deletePageImage } from './imageStore.ts';
 import { calculateTargetZoom } from '../utils/canvasMath.ts';
-import { saveNotebooksToDisk, loadNotebooksFromDisk } from '../services/storageService.ts';
+import {
+  saveNotebooksToDisk,
+  saveNotebookToDisk,
+  loadNotebooksFromDisk,
+  deleteNotebookFromDisk,
+} from '../services/storageService.ts';
 
 const MAX_UNDO_STEPS = 50;
 
@@ -85,11 +90,14 @@ export const useNotesStore = create<NotesState>()(
           sections: [initialSection],
         };
 
-        set((state) => ({
-          notebooks: [newNotebook, ...state.notebooks],
+        const nextNbs = [newNotebook, ...get().notebooks];
+        set({
+          notebooks: nextNbs,
           activeNotebookId: newNotebook.id,
           activeSectionId: initialSection.id,
-        }));
+        });
+
+        saveNotebooksToDisk(nextNbs).catch(console.error);
 
         return newNotebook;
       },
@@ -103,6 +111,14 @@ export const useNotesStore = create<NotesState>()(
                 await deletePageImage(el.imageKey);
               }
             }
+          }
+          await deleteNotebookFromDisk(notebook);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('inkwell-toast', {
+                detail: `Notebook "${notebook.name}" deleted`,
+              })
+            );
           }
         }
 
@@ -134,6 +150,9 @@ export const useNotesStore = create<NotesState>()(
           set({ activeNotebookId: null, activeSectionId: null });
           return;
         }
+        try {
+          localStorage.setItem('inkwell_last_opened_notebook', id);
+        } catch (_) {}
         const notebook = get().notebooks.find((nb) => nb.id === id);
         set({
           activeNotebookId: id,
@@ -142,11 +161,17 @@ export const useNotesStore = create<NotesState>()(
       },
 
       renameNotebook: (id: string, name: string) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
         set((state) => ({
           notebooks: state.notebooks.map((nb) =>
-            nb.id === id ? { ...nb, name: name.trim(), updatedAt: Date.now() } : nb
+            nb.id === id ? { ...nb, name: trimmed, updatedAt: Date.now() } : nb
           ),
         }));
+        const updated = get().notebooks.find((nb) => nb.id === id);
+        if (updated) {
+          saveNotebookToDisk(updated).catch(console.error);
+        }
       },
 
       addSection: (notebookId: string, name?: string) => {
@@ -251,7 +276,34 @@ export const useNotesStore = create<NotesState>()(
       },
 
       resetViewport: () => {
-        get().setViewport({ x: 0, y: 0, zoom: 1 });
+        const { activeNotebookId, activeSectionId, notebooks } = get();
+        const section = notebooks
+          .find((n) => n.id === activeNotebookId)
+          ?.sections.find((s) => s.id === activeSectionId);
+
+        if (!section || section.elements.length === 0) {
+          get().setViewport({ x: 0, y: 0, zoom: 1 });
+          return;
+        }
+
+        let minX = Infinity;
+        let minY = Infinity;
+
+        for (const el of section.elements) {
+          if (el.type === 'arrow') {
+            minX = Math.min(minX, el.startX, el.endX);
+            minY = Math.min(minY, el.startY, el.endY);
+          } else {
+            minX = Math.min(minX, el.x);
+            minY = Math.min(minY, el.y);
+          }
+        }
+
+        // Align viewport so the topmost leftmost element sits comfortably near the top-left (80px, 100px)
+        const targetX = Math.round(80 - minX);
+        const targetY = Math.round(100 - minY);
+
+        get().setViewport({ x: targetX, y: targetY, zoom: 1 });
       },
 
       zoomIn: () => {
@@ -622,21 +674,44 @@ export const useNotesStore = create<NotesState>()(
           const diskNotebooks = await loadNotebooksFromDisk();
           if (diskNotebooks && diskNotebooks.length > 0) {
             const currentNotebooks = get().notebooks;
-            // If local storage is empty or reinstalled, restore completely from disk
-            if (!currentNotebooks || currentNotebooks.length === 0) {
-              set({
-                notebooks: diskNotebooks,
-                activeNotebookId: diskNotebooks[0].id,
-                activeSectionId: diskNotebooks[0].sections[0]?.id ?? null,
-              });
-            } else {
-              // Merge any books from disk that might be missing locally
+            let mergedNotebooks = diskNotebooks;
+            if (currentNotebooks && currentNotebooks.length > 0) {
               const localIds = new Set(currentNotebooks.map((n) => n.id));
               const missingFromLocal = diskNotebooks.filter((n) => !localIds.has(n.id));
-              if (missingFromLocal.length > 0) {
-                set({ notebooks: [...currentNotebooks, ...missingFromLocal] });
-              }
+              mergedNotebooks = [...currentNotebooks, ...missingFromLocal];
             }
+
+            // Automatically restore the notebook on which the app was closed
+            let nextActiveId = get().activeNotebookId;
+            if (!nextActiveId && typeof localStorage !== 'undefined') {
+              nextActiveId = localStorage.getItem('inkwell_last_opened_notebook');
+            }
+            let activeNb = mergedNotebooks.find((n) => n.id === nextActiveId);
+
+            if (!activeNb) {
+              const sorted = [...mergedNotebooks].sort(
+                (a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)
+              );
+              activeNb = sorted[0];
+              nextActiveId = activeNb?.id ?? null;
+            }
+
+            if (nextActiveId) {
+              try {
+                localStorage.setItem('inkwell_last_opened_notebook', nextActiveId);
+              } catch (_) {}
+            }
+
+            const activeSecId =
+              activeNb && get().activeSectionId && activeNb.sections.some((s) => s.id === get().activeSectionId)
+                ? get().activeSectionId
+                : (activeNb?.sections[0]?.id ?? null);
+
+            set({
+              notebooks: mergedNotebooks,
+              activeNotebookId: nextActiveId,
+              activeSectionId: activeSecId,
+            });
           }
         } catch (err) {
           console.warn('[STORAGE] hydrateFromDisk failed:', err);
@@ -669,12 +744,21 @@ export const useNotesStore = create<NotesState>()(
         }, 50);
 
         if (state) {
-          // Ensure active notebook and active section IDs point to valid existing entities
-          const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+          // Ensure active notebook is restored on startup
+          let targetId = state.activeNotebookId;
+          if (!targetId && typeof localStorage !== 'undefined') {
+            targetId = localStorage.getItem('inkwell_last_opened_notebook');
+          }
+          let currentNb = state.notebooks.find((nb) => nb.id === targetId);
           if (!currentNb && state.notebooks.length > 0) {
-            state.activeNotebookId = state.notebooks[0].id;
-            state.activeSectionId = state.notebooks[0].sections[0]?.id ?? null;
+            const sorted = [...state.notebooks].sort(
+              (a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)
+            );
+            currentNb = sorted[0];
+            state.activeNotebookId = currentNb.id;
+            state.activeSectionId = currentNb.sections[0]?.id ?? null;
           } else if (currentNb) {
+            state.activeNotebookId = currentNb.id;
             const hasSec = currentNb.sections.some((s) => s.id === state.activeSectionId);
             if (!hasSec && currentNb.sections.length > 0) {
               state.activeSectionId = currentNb.sections[0].id;
