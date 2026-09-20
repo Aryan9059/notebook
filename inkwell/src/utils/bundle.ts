@@ -39,7 +39,7 @@ export async function exportNotebookBundle(notebook: Notebook): Promise<void> {
 
   for (const sec of notebook.sections) {
     for (const el of sec.elements) {
-      if (el.type === 'pdf-page' && el.imageKey) {
+      if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
         const blob = await getPageBlob(el.imageKey);
         if (blob) {
           images[el.imageKey] = await blobToBase64(blob);

@@ -3,6 +3,7 @@ export const SCHEMA_VERSION = 1;
 export interface Notebook {
   id: string;
   name: string;
+  folderPath?: string;
   createdAt: number;
   updatedAt: number;
   sections: Section[];
@@ -49,7 +50,18 @@ export interface PdfPageElement extends BaseElement {
   isLocked: boolean;
 }
 
-export type CanvasElement = TextElement | PdfPageElement;
+export interface ImageElement extends BaseElement {
+  type: 'image';
+  name: string;
+  width: number;
+  height: number;
+  imageKey: string;        // IndexedDB key — NOT a data URL. See §7.
+  isLocked: boolean;
+}
+
+export type CanvasElement = TextElement | PdfPageElement | ImageElement;
+
+export type ToolMode = 'select' | 'hand';
 
 /** Transient — never persisted */
 export interface UiState {
@@ -58,4 +70,5 @@ export interface UiState {
   isSidebarOpen: boolean;
   isImporting: boolean;
   importProgress: { done: number; total: number } | null;
+  activeTool: ToolMode;
 }

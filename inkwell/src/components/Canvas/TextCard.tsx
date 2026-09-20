@@ -1,6 +1,5 @@
 import {
   type FC,
-  useState,
   useRef,
   useEffect,
   useCallback,
@@ -18,10 +17,12 @@ interface TextCardProps {
 }
 
 export const TextCard: FC<TextCardProps> = ({ element }) => {
+  const cardRef = useRef<HTMLDivElement>(null);
   const selectedId = useUiStore((state) => state.selectedId);
   const editingId = useUiStore((state) => state.editingId);
   const setSelectedId = useUiStore((state) => state.setSelectedId);
   const setEditingId = useUiStore((state) => state.setEditingId);
+  const activeTool = useUiStore((state) => state.activeTool);
 
   const updateElement = useNotesStore((state) => state.updateElement);
   const moveElement = useNotesStore((state) => state.moveElement);
@@ -30,16 +31,20 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
   const isSelected = selectedId === element.id;
   const isEditing = editingId === element.id;
 
-  // Local drag position to avoid re-render storms (P8)
-  const [localPos, setLocalPos] = useState({ x: element.x, y: element.y });
-  const [isDragging, setIsDragging] = useState(false);
+  // Track position using refs for 120fps hardware-accelerated drag without React re-render lag
+  const isDraggingRef = useRef(false);
+  const posRef = useRef({ x: element.x, y: element.y });
   const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
 
+  // Sync external position updates
   useEffect(() => {
-    if (!isDragging) {
-      setLocalPos({ x: element.x, y: element.y });
+    if (!isDraggingRef.current) {
+      posRef.current = { x: element.x, y: element.y };
+      if (cardRef.current) {
+        cardRef.current.style.transform = `translate(${element.x}px, ${element.y}px)`;
+      }
     }
-  }, [element.x, element.y, isDragging]);
+  }, [element.x, element.y]);
 
   const editor = useEditor({
     extensions: [StarterKit, TextStyleKit],
@@ -72,24 +77,26 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
     }
   }, [editor, deleteElement, element.id, selectedId, editingId, setSelectedId, setEditingId]);
 
+  // Smooth drag handling
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (activeTool === 'hand') return;
     e.stopPropagation();
     setSelectedId(element.id);
 
     if (e.button !== 0) return;
 
     e.currentTarget.setPointerCapture(e.pointerId);
-    setIsDragging(true);
+    isDraggingRef.current = true;
     dragStartRef.current = {
       clientX: e.clientX,
       clientY: e.clientY,
-      startX: localPos.x,
-      startY: localPos.y,
+      startX: posRef.current.x,
+      startY: posRef.current.y,
     };
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging || !dragStartRef.current) return;
+    if (!isDraggingRef.current || !dragStartRef.current) return;
 
     const state = useNotesStore.getState();
     const activeNb = state.notebooks.find((n) => n.id === state.activeNotebookId);
@@ -99,34 +106,37 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
     const dxCanvas = (e.clientX - dragStartRef.current.clientX) / zoom;
     const dyCanvas = (e.clientY - dragStartRef.current.clientY) / zoom;
 
-    setLocalPos({
-      x: dragStartRef.current.startX + dxCanvas,
-      y: dragStartRef.current.startY + dyCanvas,
-    });
+    const nextX = dragStartRef.current.startX + dxCanvas;
+    const nextY = dragStartRef.current.startY + dyCanvas;
+    posRef.current = { x: nextX, y: nextY };
+
+    if (cardRef.current) {
+      cardRef.current.style.transform = `translate(${nextX}px, ${nextY}px)`;
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (isDragging) {
+    if (isDraggingRef.current) {
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
       } catch {
         // Ignored
       }
-      setIsDragging(false);
+      isDraggingRef.current = false;
       dragStartRef.current = null;
-      moveElement(element.id, localPos.x, localPos.y, true);
+      moveElement(element.id, posRef.current.x, posRef.current.y, true);
     }
   };
 
   const handleCardPointerDown = (e: React.PointerEvent) => {
-    if (isEditing) {
-      return;
-    }
+    if (activeTool === 'hand') return;
+    if (isEditing) return;
     e.stopPropagation();
     setSelectedId(element.id);
   };
 
   const handleCardDoubleClick = (e: React.MouseEvent) => {
+    if (activeTool === 'hand') return;
     e.stopPropagation();
     setSelectedId(element.id);
     setEditingId(element.id);
@@ -138,32 +148,37 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
     if (selectedId === element.id) setSelectedId(null);
   };
 
-  const ringStyle = isSelected
-    ? 'ring-2 ring-blue-500/90 shadow-[0_12px_36px_rgba(59,130,246,0.18)]'
-    : 'border border-black/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.06)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.09)]';
-
   return (
     <div
+      ref={cardRef}
       id={`card-${element.id}`}
       onPointerDown={handleCardPointerDown}
       onDoubleClick={handleCardDoubleClick}
-      className={`absolute select-none rounded-2xl bg-white/95 backdrop-blur-sm transition-all duration-150 ${ringStyle}`}
+      className={`group absolute select-none bg-transparent transition-shadow duration-100 ${
+        isSelected || isEditing
+          ? 'outline-1 outline-dashed outline-gray-400/80 rounded-xl'
+          : 'hover:outline-1 hover:outline-dashed hover:outline-gray-300/60 rounded-xl'
+      }`}
       style={{
-        transform: `translate(${localPos.x}px, ${localPos.y}px)`,
-        width: element.width || 320,
+        transform: `translate(${element.x}px, ${element.y}px)`,
+        width: element.width || 340,
         zIndex: element.zIndex,
       }}
     >
-      {/* Sleek drag handle bar */}
+      {/* OneNote style minimal drag grip bar above the text note */}
       <div
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className="h-8 flex items-center justify-between px-3 cursor-grab active:cursor-grabbing border-b border-black/[0.04] bg-gray-50/80 rounded-t-2xl hover:bg-gray-100/80 transition"
+        className={`absolute -top-6 left-0 right-0 h-5 flex items-center justify-between px-2 cursor-grab active:cursor-grabbing transition-opacity rounded-t-lg ${
+          isSelected || isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
+        style={{ pointerEvents: 'auto' }}
       >
-        <div className="flex items-center gap-1.5 text-gray-400">
-          <GripHorizontal size={15} />
+        <div className="flex items-center gap-1 text-gray-500 hover:text-black transition">
+          <GripHorizontal size={14} />
+          <span className="text-[10px] uppercase font-mono tracking-wider text-gray-400">Note</span>
         </div>
 
         {isSelected && (
@@ -171,16 +186,16 @@ export const TextCard: FC<TextCardProps> = ({ element }) => {
             type="button"
             onClick={handleDelete}
             title="Delete note"
-            className="p-1 rounded-md hover:bg-red-50 text-gray-400 hover:text-red-500 transition cursor-pointer"
+            className="p-0.5 rounded hover:bg-black/5 text-gray-400 hover:text-red-600 transition cursor-pointer"
           >
-            <Trash2 size={13} />
+            <Trash2 size={12} />
           </button>
         )}
       </div>
 
-      {/* Editor Body */}
+      {/* Transparent Text Body (Microsoft OneNote seamless style) */}
       <div
-        className="p-5 cursor-text text-gray-900"
+        className="p-2 cursor-text text-gray-900 leading-relaxed outline-none"
         onBlur={handleBlur}
         style={{
           fontFamily: element.fontFamily || 'inherit',

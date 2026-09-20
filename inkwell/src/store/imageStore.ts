@@ -34,7 +34,11 @@ export async function deletePageImage(key: string) {
 /** Run once on app start: drop IDB blobs no element references anymore. */
 export async function collectGarbage(liveKeys: Set<string>) {
   for (const k of await keys()) {
-    if (typeof k === 'string' && k.startsWith('page:') && !liveKeys.has(k)) {
+    if (
+      typeof k === 'string' &&
+      (k.startsWith('page:') || k.startsWith('img:')) &&
+      !liveKeys.has(k)
+    ) {
       await del(k);
     }
   }

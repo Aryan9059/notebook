@@ -8,13 +8,14 @@ import {
 import {
   FileUp,
   ChevronDown,
-  MoreHorizontal,
-  PenTool,
-  Square,
+  MoreVertical,
   Type,
   Download,
   RotateCcw,
   Trash2,
+  Paperclip,
+  Hand,
+  MousePointer2,
 } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
@@ -22,6 +23,7 @@ import { TextElement } from '../../types';
 
 interface FloatingToolbarProps {
   onAddPdfClick: () => void;
+  onAddImageClick: () => void;
   onExportPdfClick?: () => void;
 }
 
@@ -36,9 +38,12 @@ const FONT_SIZES = [14, 16, 18, 24, 32, 48];
 
 export const FloatingToolbar: FC<FloatingToolbarProps> = ({
   onAddPdfClick,
+  onAddImageClick,
   onExportPdfClick,
 }) => {
   const selectedId = useUiStore((state) => state.selectedId);
+  const activeTool = useUiStore((state) => state.activeTool);
+  const setActiveTool = useUiStore((state) => state.setActiveTool);
 
   const activeSection = useNotesStore((state) => {
     const nb = state.notebooks.find((n) => n.id === state.activeNotebookId);
@@ -105,31 +110,49 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
       <button
         type="button"
         onClick={onAddPdfClick}
-        className="h-8 px-3.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 active:scale-95 text-gray-800 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+        className="h-8 px-3.5 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 active:scale-95 text-gray-800 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer border border-black/[0.04]"
       >
-        <FileUp size={14} className="text-blue-600" />
-        <span>Add PDF</span>
+        <FileUp size={14} className="text-gray-900" />
+        <span>Add pdf</span>
       </button>
 
-      {/* Utility Slot 1 (Placeholder) */}
+      {/* Attachment button for Images */}
       <button
         type="button"
-        disabled
-        title="Drawing tools (Coming soon)"
-        className="w-8 h-8 rounded-xl bg-gray-100/70 border border-black/[0.04] flex items-center justify-center text-gray-400 opacity-60 cursor-not-allowed"
+        onClick={onAddImageClick}
+        title="Add image attachment"
+        className="w-8 h-8 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 active:scale-95 text-gray-700 flex items-center justify-center transition cursor-pointer border border-black/[0.04]"
       >
-        <PenTool size={13} />
+        <Paperclip size={15} />
       </button>
 
-      {/* Utility Slot 2 (Placeholder) */}
-      <button
-        type="button"
-        disabled
-        title="Shapes (Coming soon)"
-        className="w-8 h-8 rounded-xl bg-gray-100/70 border border-black/[0.04] flex items-center justify-center text-gray-400 opacity-60 cursor-not-allowed"
-      >
-        <Square size={13} />
-      </button>
+      {/* Hand / Select tool segmented toggle */}
+      <div className="flex items-center p-0.5 rounded-xl bg-gray-100/90 border border-black/[0.04] h-8">
+        <button
+          type="button"
+          onClick={() => setActiveTool('hand')}
+          title="Hand Tool (Pan canvas) — H"
+          className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
+            activeTool === 'hand'
+              ? 'bg-black text-white shadow-sm font-semibold'
+              : 'text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <Hand size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTool('select')}
+          title="Select Tool — V"
+          className={`w-7 h-7 rounded-lg flex items-center justify-center transition cursor-pointer ${
+            activeTool === 'select'
+              ? 'bg-black text-white shadow-sm font-semibold'
+              : 'text-gray-500 hover:text-gray-800'
+          }`}
+        >
+          <MousePointer2 size={14} />
+        </button>
+      </div>
 
       {/* Segmented font controls */}
       <div className="flex items-center rounded-xl bg-gray-100/90 border border-black/[0.04] h-8 px-1">
@@ -184,32 +207,37 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
           title="More options"
           className="w-8 h-8 rounded-xl flex items-center justify-center hover:bg-gray-100/80 transition text-gray-600 hover:text-gray-900 cursor-pointer"
         >
-          <MoreHorizontal size={16} />
+          <MoreVertical size={16} />
         </button>
 
         {isMenuOpen && (
-          <div className="absolute right-0 top-full mt-2 w-52 rounded-2xl bg-white/95 backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.14)] border border-black/[0.08] p-1.5 z-50 animate-fade-in">
+          <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl bg-white/95 backdrop-blur-2xl shadow-[0_16px_36px_rgba(0,0,0,0.14)] border border-black/[0.08] p-1.5 z-50 animate-fade-in">
             <button
               type="button"
               onClick={() => {
                 setIsMenuOpen(false);
                 onExportPdfClick?.();
               }}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 hover:bg-black/[0.04] transition flex items-center gap-2 cursor-pointer font-medium"
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 hover:bg-black/[0.04] transition flex items-center justify-between cursor-pointer font-medium"
             >
-              <Download size={14} className="text-gray-500" />
-              <span>Export as PDF</span>
+              <div className="flex items-center gap-2">
+                <Download size={14} className="text-gray-500" />
+                <span>Export as PDF</span>
+              </div>
             </button>
             <button
               type="button"
               onClick={() => {
-                setIsMenuOpen(false);
                 resetViewport();
+                setIsMenuOpen(false);
               }}
-              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 hover:bg-black/[0.04] transition flex items-center gap-2 cursor-pointer font-medium"
+              className="w-full px-3 py-2 rounded-lg text-left text-xs text-gray-800 hover:bg-black/[0.04] transition flex items-center justify-between cursor-pointer font-medium"
             >
-              <RotateCcw size={14} className="text-gray-500" />
-              <span>Reset View</span>
+              <div className="flex items-center gap-2">
+                <RotateCcw size={14} className="text-gray-500" />
+                <span>Reset View</span>
+              </div>
+              <span className="text-[10px] text-gray-400 font-mono">⌘0</span>
             </button>
             <div className="border-t border-black/[0.06] my-1" />
             <button
@@ -226,3 +254,4 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
     </div>
   );
 };
+

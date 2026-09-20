@@ -1,10 +1,11 @@
 import { useState, useEffect, type FC, type FormEvent, type KeyboardEvent } from 'react';
-import { BookOpen, X } from 'lucide-react';
+import { BookOpen, Folder, X } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-dialog';
 
 interface CreateNotebookDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, folderPath?: string) => void;
 }
 
 export const CreateNotebookDialog: FC<CreateNotebookDialogProps> = ({
@@ -13,20 +14,44 @@ export const CreateNotebookDialog: FC<CreateNotebookDialogProps> = ({
   onCreate,
 }) => {
   const [name, setName] = useState('');
+  const [folderPath, setFolderPath] = useState<string>('');
 
   useEffect(() => {
     if (isOpen) {
       setName('');
+      setFolderPath('');
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const handleChooseFolder = async () => {
+    try {
+      // @ts-expect-error — Tauri check
+      const isTauri = typeof window !== 'undefined' && Boolean(window.__TAURI_INTERNALS__);
+      if (isTauri) {
+        const selected = await open({
+          directory: true,
+          multiple: false,
+          title: 'Select Destination Folder for Notebook',
+        });
+        if (selected && typeof selected === 'string') {
+          setFolderPath(selected);
+        }
+      } else {
+        const dummy = prompt('Enter destination directory path:', folderPath || '~/Documents/Inkwell');
+        if (dummy) setFolderPath(dummy);
+      }
+    } catch (err) {
+      console.error('Failed to open folder picker:', err);
+    }
+  };
+
   const handleSubmit = (e?: FormEvent) => {
     if (e) e.preventDefault();
     const trimmed = name.trim();
     if (trimmed) {
-      onCreate(trimmed);
+      onCreate(trimmed, folderPath);
       onClose();
     }
   };
@@ -43,25 +68,25 @@ export const CreateNotebookDialog: FC<CreateNotebookDialogProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-md animate-fade-in p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-md animate-fade-in p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[460px] rounded-3xl bg-white/95 backdrop-blur-2xl border border-white/70 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.2)] p-7 flex flex-col no-drag"
+        className="w-full max-w-[480px] rounded-3xl bg-white/95 backdrop-blur-2xl border border-black/[0.08] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.2)] p-7 flex flex-col no-drag"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
-              <BookOpen size={22} strokeWidth={2.2} />
+            <div className="w-11 h-11 rounded-2xl bg-black text-white flex items-center justify-center shadow-md">
+              <BookOpen size={20} strokeWidth={2} />
             </div>
             <div>
               <h2 className="text-xl font-semibold tracking-tight text-gray-900">
                 New Notebook
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                Name your infinite workspace
+                Configure your infinite workspace
               </p>
             </div>
           </div>
@@ -75,24 +100,55 @@ export const CreateNotebookDialog: FC<CreateNotebookDialogProps> = ({
           </button>
         </div>
 
-        {/* Input Field */}
-        <div className="mb-8">
-          <label
-            htmlFor="notebook-name-input"
-            className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2"
-          >
-            Notebook Title
-          </label>
-          <input
-            id="notebook-name-input"
-            type="text"
-            autoFocus
-            placeholder="e.g. Research, Architecture, Lecture Notes"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="w-full h-12 rounded-xl bg-gray-100/90 focus:bg-white border border-transparent focus:border-blue-500 px-4 text-base text-gray-900 focus:ring-4 focus:ring-blue-500/15 transition-all outline-none"
-          />
+        {/* Input Fields */}
+        <div className="space-y-4 mb-8">
+          {/* Title */}
+          <div>
+            <label
+              htmlFor="notebook-name-input"
+              className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2"
+            >
+              Notebook Title
+            </label>
+            <input
+              id="notebook-name-input"
+              type="text"
+              autoFocus
+              placeholder="e.g. Research, Architecture, Notes"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full h-11 rounded-xl bg-gray-100/90 focus:bg-white border border-black/[0.06] focus:border-black px-4 text-sm text-gray-900 focus:ring-2 focus:ring-black/10 transition-all outline-none"
+            />
+          </div>
+
+          {/* Folder Destination Picker */}
+          <div>
+            <label
+              htmlFor="notebook-folder-input"
+              className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2"
+            >
+              Storage Location
+            </label>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-11 rounded-xl bg-gray-100/90 border border-black/[0.06] px-3.5 flex items-center gap-2 text-xs text-gray-700 truncate select-text">
+                <Folder size={14} className="text-gray-500 shrink-0" />
+                <span className="truncate">
+                  {folderPath || 'Default (App Storage)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleChooseFolder}
+                className="h-11 px-4 rounded-xl bg-gray-200/80 hover:bg-gray-300/80 text-gray-800 text-xs font-medium transition cursor-pointer shrink-0"
+              >
+                Browse…
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1.5">
+              Choose a folder on disk to store this notebook, or use the default location.
+            </p>
+          </div>
         </div>
 
         {/* Actions */}
@@ -108,7 +164,7 @@ export const CreateNotebookDialog: FC<CreateNotebookDialogProps> = ({
             type="button"
             disabled={!name.trim()}
             onClick={() => handleSubmit()}
-            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 active:scale-[0.98] shadow-sm shadow-blue-500/25 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="px-6 py-2.5 rounded-xl text-sm font-semibold text-white bg-black hover:bg-gray-800 active:scale-[0.98] transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             Create Notebook
           </button>
@@ -117,3 +173,4 @@ export const CreateNotebookDialog: FC<CreateNotebookDialogProps> = ({
     </div>
   );
 };
+

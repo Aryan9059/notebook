@@ -68,10 +68,6 @@ export const StartScreen: FC = () => {
     }
   };
 
-  const handleCreate = (name: string) => {
-    createNotebook(name);
-  };
-
   const recentNotebooks = [...notebooks].sort((a, b) => b.updatedAt - a.updatedAt);
 
   return (
@@ -84,8 +80,8 @@ export const StartScreen: FC = () => {
         {/* Header Branding */}
         <div className="flex items-center justify-between mb-8 pb-6 border-b border-black/[0.06]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
-              <Sparkles size={18} strokeWidth={2.2} />
+            <div className="w-9 h-9 rounded-xl bg-black text-white flex items-center justify-center shadow-md">
+              <Sparkles size={18} strokeWidth={2} />
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-gray-900 leading-none">
@@ -113,13 +109,13 @@ export const StartScreen: FC = () => {
             role="button"
             tabIndex={0}
             onClick={() => setIsCreateOpen(true)}
-            className="h-[210px] rounded-2xl bg-white/90 hover:bg-white border border-black/[0.08] hover:border-blue-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
+            className="h-[210px] rounded-2xl bg-white/90 hover:bg-white border border-black/[0.08] hover:border-black/30 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
           >
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-blue-500/25 group-hover:scale-105 transition-transform duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-black text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-200">
               <Plus size={24} strokeWidth={2.5} />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+              <h3 className="text-base font-semibold text-gray-900 group-hover:text-black transition-colors">
                 New Notebook
               </h3>
               <p className="text-xs text-gray-500 mt-1">
@@ -133,13 +129,13 @@ export const StartScreen: FC = () => {
             role="button"
             tabIndex={0}
             onClick={handleOpenExisting}
-            className="h-[210px] rounded-2xl bg-white/90 hover:bg-white border border-black/[0.08] hover:border-indigo-500/40 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
+            className="h-[210px] rounded-2xl bg-white/90 hover:bg-white border border-black/[0.08] hover:border-black/30 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
           >
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/25 group-hover:scale-105 transition-transform duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-gray-800 text-white flex items-center justify-center shadow-md group-hover:scale-105 transition-transform duration-200">
               <FolderOpen size={22} strokeWidth={2} />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
+              <h3 className="text-base font-semibold text-gray-900 group-hover:text-black transition-colors">
                 Open Existing
               </h3>
               <p className="text-xs text-gray-500 mt-1">
@@ -164,10 +160,10 @@ export const StartScreen: FC = () => {
                 role="button"
                 tabIndex={0}
                 onClick={() => setActiveNotebook(nb.id)}
-                className="h-[210px] rounded-2xl bg-white/90 hover:bg-white border border-black/[0.08] hover:border-black/[0.16] shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
+                className="h-[210px] rounded-2xl bg-white/90 hover:bg-white border border-black/[0.08] hover:border-black/[0.2] shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.08)] p-6 flex flex-col justify-between transition-all duration-200 cursor-pointer group no-drag hover:-translate-y-0.5"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-700 flex items-center justify-center group-hover:bg-gray-200 transition-colors">
                     <BookOpen size={20} />
                   </div>
                   <span className="px-2.5 py-1 rounded-full bg-gray-100/90 text-[11px] font-medium text-gray-600">
@@ -176,7 +172,7 @@ export const StartScreen: FC = () => {
                 </div>
 
                 <div>
-                  <h3 className="text-base font-semibold text-gray-900 truncate group-hover:text-blue-600 transition-colors">
+                  <h3 className="text-base font-semibold text-gray-900 truncate group-hover:text-black transition-colors">
                     {nb.name}
                   </h3>
                   <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
@@ -190,10 +186,11 @@ export const StartScreen: FC = () => {
         </div>
       </div>
 
+      {/* Create Dialog */}
       <CreateNotebookDialog
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        onCreate={handleCreate}
+        onCreate={(name, folderPath) => createNotebook(name, folderPath)}
       />
     </div>
   );

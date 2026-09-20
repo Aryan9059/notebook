@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { UiState } from '../types';
+import { ToolMode, UiState } from '../types';
 
 interface UiStore extends UiState {
   setSelectedId: (id: string | null) => void;
@@ -8,6 +8,7 @@ interface UiStore extends UiState {
   toggleSidebar: () => void;
   setIsImporting: (isImporting: boolean) => void;
   setImportProgress: (progress: { done: number; total: number } | null) => void;
+  setActiveTool: (tool: ToolMode) => void;
   resetUi: () => void;
 }
 
@@ -17,6 +18,7 @@ const initialState: UiState = {
   isSidebarOpen: true,
   isImporting: false,
   importProgress: null,
+  activeTool: 'select',
 };
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -27,5 +29,7 @@ export const useUiStore = create<UiStore>((set) => ({
   toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
   setIsImporting: (isImporting) => set({ isImporting }),
   setImportProgress: (importProgress) => set({ importProgress }),
+  setActiveTool: (activeTool) => set({ activeTool }),
   resetUi: () => set(initialState),
 }));
+

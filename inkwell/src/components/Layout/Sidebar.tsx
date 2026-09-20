@@ -105,7 +105,7 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="flex items-center gap-2 px-2 py-1.5 -ml-2 rounded-xl hover:bg-black/[0.04] transition cursor-pointer max-w-full"
               >
-                <div className="w-6 h-6 rounded-lg bg-blue-600/10 text-blue-600 flex items-center justify-center shrink-0">
+                <div className="w-6 h-6 rounded-lg bg-black/10 text-black flex items-center justify-center shrink-0">
                   <BookOpen size={13} strokeWidth={2.2} />
                 </div>
                 <span className="font-semibold text-gray-900 text-sm truncate">
@@ -131,13 +131,13 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                         }}
                         className={`w-full px-2.5 py-2 rounded-lg text-left text-xs flex items-center justify-between transition cursor-pointer ${
                           nb.id === activeNotebookId
-                            ? 'bg-blue-50 text-blue-600 font-medium'
+                            ? 'bg-black/5 text-black font-semibold'
                             : 'text-gray-700 hover:bg-black/[0.04]'
                         }`}
                       >
                         <span className="truncate">{nb.name}</span>
                         {nb.id === activeNotebookId && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-black shrink-0" />
                         )}
                       </button>
                     ))}
@@ -210,7 +210,7 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                   <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-1.5">
                     <Layers
                       size={15}
-                      className={isActive ? 'text-blue-600 shrink-0' : 'text-gray-400 shrink-0'}
+                      className={isActive ? 'text-black shrink-0' : 'text-gray-400 shrink-0'}
                     />
                     {isRenaming ? (
                       <input
@@ -224,7 +224,7 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
                           if (e.key === 'Escape') setEditingSectionId(null);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        className="w-full h-6 bg-transparent text-gray-900 text-sm font-medium border-b border-blue-500 focus:outline-none"
+                        className="w-full h-6 bg-transparent text-gray-900 text-sm font-medium border-b border-black focus:outline-none"
                       />
                     ) : (
                       <span className="truncate">{sec.name}</span>

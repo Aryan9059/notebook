@@ -18,6 +18,7 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const selectedId = useUiStore((state) => state.selectedId);
   const setSelectedId = useUiStore((state) => state.setSelectedId);
+  const activeTool = useUiStore((state) => state.activeTool);
 
   const updateElement = useNotesStore((state) => state.updateElement);
   const moveElement = useNotesStore((state) => state.moveElement);
@@ -52,6 +53,7 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
+    if (activeTool === 'hand') return;
     e.stopPropagation();
     setSelectedId(element.id);
 
@@ -98,14 +100,14 @@ export const PdfPageCard: FC<PdfPageCardProps> = ({ element }) => {
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
-    if (!element.isLocked) {
+    if (!element.isLocked && activeTool !== 'hand') {
       e.stopPropagation();
       setSelectedId(element.id);
     }
   };
 
   const ringStyle = isSelected
-    ? 'ring-2 ring-blue-500/90 shadow-[0_16px_48px_rgba(59,130,246,0.22)]'
+    ? 'ring-2 ring-black shadow-[0_16px_48px_rgba(0,0,0,0.16)]'
     : 'shadow-[0_12px_40px_rgba(0,0,0,0.08)] border border-black/[0.08]';
 
   return (

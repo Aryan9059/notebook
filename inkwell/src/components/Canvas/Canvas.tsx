@@ -10,9 +10,14 @@ import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
 import {
   calculateCursorZoom,
+  calculateTargetZoom,
+  clamp,
+  MIN_ZOOM,
+  MAX_ZOOM,
   getDotGridStyle,
   screenToCanvas,
 } from '../../utils/canvasMath';
+import { Viewport } from '../../types';
 import { WorldLayer } from './WorldLayer';
 
 interface CanvasProps {
@@ -31,6 +36,8 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
 
   const setViewport = useNotesStore((state) => state.setViewport);
   const resetViewport = useNotesStore((state) => state.resetViewport);
+  const zoomIn = useNotesStore((state) => state.zoomIn);
+  const zoomOut = useNotesStore((state) => state.zoomOut);
   const undo = useNotesStore((state) => state.undo);
   const redo = useNotesStore((state) => state.redo);
   const deleteElement = useNotesStore((state) => state.deleteElement);
@@ -38,8 +45,10 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
   // UI state
   const selectedId = useUiStore((state) => state.selectedId);
   const editingId = useUiStore((state) => state.editingId);
+  const activeTool = useUiStore((state) => state.activeTool);
   const setSelectedId = useUiStore((state) => state.setSelectedId);
   const setEditingId = useUiStore((state) => state.setEditingId);
+  const setActiveTool = useUiStore((state) => state.setActiveTool);
 
   // Fallback viewport
   const viewport = activeSection?.viewport ?? { x: 0, y: 0, zoom: 1 };
@@ -51,24 +60,28 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const panStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
 
-  // Non-passive wheel handler (P3: macOS trackpad pinch arrives as wheel with ctrlKey)
+  // Non-passive wheel & native WebKit gesture handler for trackpad pinch zoom & pan
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const onWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null;
+      // Don't intercept scrolling inside sidebar
+      if (target?.closest('#sidebar-container')) return;
+
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       const current = viewportRef.current;
 
       if (e.ctrlKey || e.metaKey) {
-        // Zoom anchored to cursor
+        // Trackpad pinch or Ctrl/Cmd + wheel zoom anchored to cursor
         const px = e.clientX - rect.left;
         const py = e.clientY - rect.top;
         const next = calculateCursorZoom(px, py, e.deltaY, current);
         setViewport(next);
       } else {
-        // Pan
+        // Trackpad 2-finger scroll pan
         setViewport({
           x: current.x - e.deltaX,
           y: current.y - e.deltaY,
@@ -76,37 +89,81 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
       }
     };
 
-    el.addEventListener('wheel', onWheel, { passive: false });
+    // Native WebKit gesture tracking (Safari & macOS WKWebView trackpad pinch)
+    let gestureStartZoom = 1;
+    let gestureStartViewport: Viewport = { x: 0, y: 0, zoom: 1 };
 
-    // Swallow legacy WebKit gesture events
-    const preventGesture = (e: Event) => e.preventDefault();
-    el.addEventListener('gesturestart', preventGesture);
-    el.addEventListener('gesturechange', preventGesture);
-    el.addEventListener('gestureend', preventGesture);
+    const onGestureStart = (e: Event) => {
+      e.preventDefault();
+      gestureStartViewport = viewportRef.current;
+      gestureStartZoom = viewportRef.current.zoom;
+    };
+
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+      const ge = e as unknown as { scale: number; clientX?: number; clientY?: number };
+      const rect = el.getBoundingClientRect();
+      const clientX = typeof ge.clientX === 'number' ? ge.clientX : rect.left + rect.width / 2;
+      const clientY = typeof ge.clientY === 'number' ? ge.clientY : rect.top + rect.height / 2;
+      const px = clientX - rect.left;
+      const py = clientY - rect.top;
+      const targetZoom = clamp(gestureStartZoom * ge.scale, MIN_ZOOM, MAX_ZOOM);
+      const next = calculateTargetZoom(px, py, targetZoom, gestureStartViewport);
+      setViewport(next);
+    };
+
+    const onGestureEnd = (e: Event) => {
+      e.preventDefault();
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('wheel', onWheel, { passive: false });
+
+    el.addEventListener('gesturestart', onGestureStart, { passive: false });
+    el.addEventListener('gesturechange', onGestureChange, { passive: false });
+    el.addEventListener('gestureend', onGestureEnd, { passive: false });
 
     return () => {
       el.removeEventListener('wheel', onWheel);
-      el.removeEventListener('gesturestart', preventGesture);
-      el.removeEventListener('gesturechange', preventGesture);
-      el.removeEventListener('gestureend', preventGesture);
+      window.removeEventListener('wheel', onWheel);
+      el.removeEventListener('gesturestart', onGestureStart);
+      el.removeEventListener('gesturechange', onGestureChange);
+      el.removeEventListener('gestureend', onGestureEnd);
     };
   }, [setViewport]);
 
-  // Space key tracking
+  // Space key and Tool/Zoom keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
+      const target = e.target as HTMLElement | null;
+      const activeEl = document.activeElement as HTMLElement | null;
       const isInput =
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable ||
-        target.closest('.ProseMirror');
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable ||
+        Boolean(target?.closest('.ProseMirror')) ||
+        activeEl?.tagName === 'INPUT' ||
+        activeEl?.tagName === 'TEXTAREA' ||
+        activeEl?.isContentEditable ||
+        Boolean(activeEl?.closest('.ProseMirror'));
 
       if (e.code === 'Space' && !isInput && !e.repeat) {
         setIsSpacePressed(true);
       }
 
-      // Keyboard shortcuts per §9.1
+      // Quick tool toggle shortcuts: H = Hand tool, V = Select tool
+      if (!isInput && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'h' || e.code === 'KeyH') {
+          e.preventDefault();
+          setActiveTool('hand');
+        } else if (k === 'v' || e.code === 'KeyV') {
+          e.preventDefault();
+          setActiveTool('select');
+        }
+      }
+
+      // Keyboard shortcuts per §9.1 and Zoom controls
       if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -114,6 +171,12 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         } else {
           undo();
         }
+      } else if ((e.metaKey || e.ctrlKey) && (e.code === 'Equal' || e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        zoomIn();
+      } else if ((e.metaKey || e.ctrlKey) && (e.code === 'Minus' || e.key === '-')) {
+        e.preventDefault();
+        zoomOut();
       } else if ((e.metaKey || e.ctrlKey) && e.code === 'Digit0') {
         e.preventDefault();
         resetViewport();
@@ -148,15 +211,28 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [editingId, selectedId, setEditingId, setSelectedId, deleteElement, resetViewport, undo, redo]);
+  }, [
+    editingId,
+    selectedId,
+    setEditingId,
+    setSelectedId,
+    deleteElement,
+    resetViewport,
+    zoomIn,
+    zoomOut,
+    setActiveTool,
+    undo,
+    redo,
+  ]);
 
-  // Pointer-based pan (Space+drag or middle-click drag)
+  // Pointer-based pan (Hand tool, Space+drag, or middle-click drag)
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       const isMiddleClick = e.button === 1;
       const isSpaceDrag = isSpacePressed && e.button === 0;
+      const isHandToolDrag = activeTool === 'hand' && e.button === 0;
 
-      if (isMiddleClick || isSpaceDrag) {
+      if (isMiddleClick || isSpaceDrag || isHandToolDrag) {
         e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
         setIsPanning(true);
@@ -168,7 +244,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         };
       }
     },
-    [isSpacePressed]
+    [isSpacePressed, activeTool]
   );
 
   const handlePointerMove = useCallback(
@@ -207,8 +283,10 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     }
   };
 
-  // Double click empty canvas: invoke callback with canvas-space coordinates
+  // Double click empty canvas: invoke callback with canvas-space coordinates (only in select mode)
   const handleDoubleClick = (e: React.MouseEvent) => {
+    if (activeTool === 'hand') return;
+
     if (
       e.target === containerRef.current ||
       (e.target as HTMLElement).id === 'canvas-world-layer'
@@ -224,9 +302,12 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
 
   const cursorClass = isPanning
     ? 'cursor-grabbing'
+    : activeTool === 'hand'
+    ? 'cursor-grab'
     : isSpacePressed
     ? 'cursor-grab'
     : 'cursor-default';
+
 
   return (
     <div

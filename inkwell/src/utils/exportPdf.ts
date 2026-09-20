@@ -50,7 +50,8 @@ export async function exportSectionToPdf(
   for (const el of elements) {
     const domEl =
       document.getElementById(`card-${el.id}`) ||
-      document.getElementById(`pdf-page-${el.id}`);
+      document.getElementById(`pdf-page-${el.id}`) ||
+      document.getElementById(`image-card-${el.id}`);
 
     if (domEl) {
       const cloned = domEl.cloneNode(true) as HTMLElement;

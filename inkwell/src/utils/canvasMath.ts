@@ -1,4 +1,4 @@
-import { Viewport } from '../types';
+import type { Viewport } from '../types';
 
 export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 3.0;
@@ -64,6 +64,26 @@ export function calculateCursorZoom(
   return {
     x: px - k * (px - viewport.x),
     y: py - k * (py - viewport.y),
+    zoom: nextZoom,
+  };
+}
+
+/**
+ * Zoom anchored to a specific container point (e.g. center of viewport)
+ */
+export function calculateTargetZoom(
+  anchorX: number,
+  anchorY: number,
+  targetZoom: number,
+  viewport: Viewport
+): Viewport {
+  const nextZoom = clamp(targetZoom, MIN_ZOOM, MAX_ZOOM);
+  if (nextZoom === viewport.zoom) return viewport;
+
+  const k = nextZoom / viewport.zoom;
+  return {
+    x: anchorX - k * (anchorX - viewport.x),
+    y: anchorY - k * (anchorY - viewport.y),
     zoom: nextZoom,
   };
 }

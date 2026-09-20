@@ -8,6 +8,7 @@ import {
   Viewport,
 } from '../types';
 import { deletePageImage } from './imageStore';
+import { calculateTargetZoom } from '../utils/canvasMath';
 
 const MAX_UNDO_STEPS = 50;
 
@@ -21,7 +22,7 @@ interface NotesState {
   redoStacks: Record<string, CanvasElement[][]>;
 
   // Actions
-  createNotebook: (name: string) => Notebook;
+  createNotebook: (name: string, folderPath?: string) => Notebook;
   deleteNotebook: (id: string) => Promise<void>;
   setActiveNotebook: (id: string | null) => void;
   renameNotebook: (id: string, name: string) => void;
@@ -33,6 +34,9 @@ interface NotesState {
 
   setViewport: (viewport: Partial<Viewport>) => void;
   resetViewport: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  setZoomLevel: (zoom: number) => void;
 
   addElement: (element: CanvasElement) => void;
   updateElement: (id: string, patch: Partial<CanvasElement>, commitUndo?: boolean) => void;
@@ -61,7 +65,7 @@ export const useNotesStore = create<NotesState>()(
       undoStacks: {},
       redoStacks: {},
 
-      createNotebook: (name: string) => {
+      createNotebook: (name: string, folderPath?: string) => {
         const initialSection: Section = {
           id: crypto.randomUUID(),
           name: 'Section 1',
@@ -72,6 +76,7 @@ export const useNotesStore = create<NotesState>()(
         const newNotebook: Notebook = {
           id: crypto.randomUUID(),
           name: name.trim(),
+          folderPath: folderPath?.trim() || undefined,
           createdAt: Date.now(),
           updatedAt: Date.now(),
           sections: [initialSection],
@@ -91,7 +96,7 @@ export const useNotesStore = create<NotesState>()(
         if (notebook) {
           for (const sec of notebook.sections) {
             for (const el of sec.elements) {
-              if (el.type === 'pdf-page' && el.imageKey) {
+              if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
                 await deletePageImage(el.imageKey);
               }
             }
@@ -189,7 +194,7 @@ export const useNotesStore = create<NotesState>()(
         const section = notebook?.sections.find((s) => s.id === sectionId);
         if (section) {
           for (const el of section.elements) {
-            if (el.type === 'pdf-page' && el.imageKey) {
+            if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
               await deletePageImage(el.imageKey);
             }
           }
@@ -244,6 +249,72 @@ export const useNotesStore = create<NotesState>()(
 
       resetViewport: () => {
         get().setViewport({ x: 0, y: 0, zoom: 1 });
+      },
+
+      zoomIn: () => {
+        const { activeNotebookId, activeSectionId, notebooks } = get();
+        if (!activeNotebookId || !activeSectionId) return;
+        const section = notebooks
+          .find((n) => n.id === activeNotebookId)
+          ?.sections.find((s) => s.id === activeSectionId);
+        if (!section) return;
+
+        const container = document.getElementById('infinite-canvas-container');
+        const rect = container?.getBoundingClientRect() ?? {
+          width: window.innerWidth - 280,
+          height: window.innerHeight,
+        };
+        const next = calculateTargetZoom(
+          rect.width / 2,
+          rect.height / 2,
+          section.viewport.zoom * 1.2,
+          section.viewport
+        );
+        get().setViewport(next);
+      },
+
+      zoomOut: () => {
+        const { activeNotebookId, activeSectionId, notebooks } = get();
+        if (!activeNotebookId || !activeSectionId) return;
+        const section = notebooks
+          .find((n) => n.id === activeNotebookId)
+          ?.sections.find((s) => s.id === activeSectionId);
+        if (!section) return;
+
+        const container = document.getElementById('infinite-canvas-container');
+        const rect = container?.getBoundingClientRect() ?? {
+          width: window.innerWidth - 280,
+          height: window.innerHeight,
+        };
+        const next = calculateTargetZoom(
+          rect.width / 2,
+          rect.height / 2,
+          section.viewport.zoom / 1.2,
+          section.viewport
+        );
+        get().setViewport(next);
+      },
+
+      setZoomLevel: (targetZoom: number) => {
+        const { activeNotebookId, activeSectionId, notebooks } = get();
+        if (!activeNotebookId || !activeSectionId) return;
+        const section = notebooks
+          .find((n) => n.id === activeNotebookId)
+          ?.sections.find((s) => s.id === activeSectionId);
+        if (!section) return;
+
+        const container = document.getElementById('infinite-canvas-container');
+        const rect = container?.getBoundingClientRect() ?? {
+          width: window.innerWidth - 280,
+          height: window.innerHeight,
+        };
+        const next = calculateTargetZoom(
+          rect.width / 2,
+          rect.height / 2,
+          targetZoom,
+          section.viewport
+        );
+        get().setViewport(next);
       },
 
       addElement: (element: CanvasElement) => {
@@ -340,7 +411,7 @@ export const useNotesStore = create<NotesState>()(
         if (!currentSection) return;
 
         const target = currentSection.elements.find((el) => el.id === id);
-        if (target && target.type === 'pdf-page' && target.imageKey) {
+        if (target && (target.type === 'pdf-page' || target.type === 'image') && target.imageKey) {
           await deletePageImage(target.imageKey);
         }
 
@@ -380,7 +451,7 @@ export const useNotesStore = create<NotesState>()(
         if (!currentSection) return;
 
         for (const el of currentSection.elements) {
-          if (el.type === 'pdf-page' && el.imageKey) {
+          if ((el.type === 'pdf-page' || el.type === 'image') && el.imageKey) {
             await deletePageImage(el.imageKey);
           }
         }
