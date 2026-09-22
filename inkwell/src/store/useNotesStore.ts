@@ -37,6 +37,7 @@ interface NotesState {
   renameSection: (notebookId: string, sectionId: string, name: string) => void;
   deleteSection: (notebookId: string, sectionId: string) => Promise<void>;
   setActiveSection: (sectionId: string | null) => void;
+  navigateToSection: (notebookId: string, sectionId: string) => void;
 
   setViewport: (viewport: Partial<Viewport>) => void;
   resetViewport: () => void;
@@ -253,6 +254,16 @@ export const useNotesStore = create<NotesState>()(
 
       setActiveSection: (sectionId: string | null) => {
         set({ activeSectionId: sectionId });
+      },
+
+      navigateToSection: (notebookId: string, sectionId: string) => {
+        try {
+          localStorage.setItem('inkwell_last_opened_notebook', notebookId);
+        } catch (_) {}
+        set({
+          activeNotebookId: notebookId,
+          activeSectionId: sectionId,
+        });
       },
 
       setViewport: (viewport: Partial<Viewport>) => {

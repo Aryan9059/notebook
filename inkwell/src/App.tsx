@@ -12,6 +12,7 @@ import { CanvasElements } from './components/Canvas/CanvasElements';
 import { processPdfFile } from './utils/pdfProcessor';
 import { exportSectionToPdf } from './utils/exportPdf';
 import { CanvasElement, ImageElement, TextElement } from './types';
+import { CommandPalette } from './components/CommandPalette/CommandPalette';
 
 export default function App() {
   const activeNotebookId = useNotesStore((state) => state.activeNotebookId);
@@ -35,6 +36,7 @@ export default function App() {
   const setImportProgress = useUiStore((state) => state.setImportProgress);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +55,28 @@ export default function App() {
     };
     window.addEventListener('inkwell-toast', onToast);
     return () => window.removeEventListener('inkwell-toast', onToast);
+  }, []);
+
+  // Global Command + K / Ctrl + K shortcut to open search and quick switcher
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K' || e.code === 'KeyK')) {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+
+    const handleOpenCommandPalette = () => {
+      setIsCommandPaletteOpen(true);
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    window.addEventListener('inkwell-open-command-palette', handleOpenCommandPalette);
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown, true);
+      window.removeEventListener('inkwell-open-command-palette', handleOpenCommandPalette);
+    };
   }, []);
 
   // Initialize permanent ~/Documents/Notebook filesystem storage and hydrate notebooks
@@ -477,6 +501,12 @@ export default function App() {
           <span>{toastMessage}</span>
         </div>
       )}
+
+      {/* Global Command + K Search & Quick Switcher Palette */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+      />
 
       {/* If no notebook is active, render StartScreen */}
       {!activeNotebookId || !activeNotebook ? (

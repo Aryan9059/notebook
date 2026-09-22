@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   MoreHorizontal,
   Pencil,
+  Search,
 } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import { useUiStore } from '../../store/useUiStore';
@@ -327,6 +328,22 @@ export const Sidebar: FC<SidebarProps> = ({ onNewNotebookClick, onGoToStartScree
               <PanelLeft size={16} />
             </button>
           </div>
+
+          {/* Quick Switcher / Search bar trigger button */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('inkwell-open-command-palette'))}
+            title="Search sections and notebooks (⌘K)"
+            className="w-full h-9 mb-3 px-3 rounded-xl bg-gray-100/90 hover:bg-gray-200/80 dark:bg-[#252525] dark:hover:bg-[#2e2e2e] border border-black/[0.04] dark:border-white/[0.06] text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between transition-colors cursor-pointer group"
+          >
+            <span className="flex items-center gap-2">
+              <Search size={13} className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" />
+              <span className="font-normal">Search…</span>
+            </span>
+            <kbd className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-black/[0.05] dark:bg-white/10 text-gray-400 dark:text-gray-400 border border-black/[0.04] dark:border-white/[0.06]">
+              ⌘K
+            </kbd>
+          </button>
 
           {/* Section list label */}
           <div className="flex items-center justify-between px-1 mb-2">
