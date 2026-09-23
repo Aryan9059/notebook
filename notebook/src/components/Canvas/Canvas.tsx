@@ -42,7 +42,6 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
   const zoomOut = useNotesStore((state) => state.zoomOut);
   const undo = useNotesStore((state) => state.undo);
   const redo = useNotesStore((state) => state.redo);
-  const deleteElement = useNotesStore((state) => state.deleteElement);
   const deleteElements = useNotesStore((state) => state.deleteElements);
 
   // UI state
@@ -534,11 +533,11 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     editingId,
     selectedId,
     selectedIds,
+    activeTool,
     setEditingId,
     setSelectedId,
     setSelectedIds,
     clearSelection,
-    deleteElement,
     deleteElements,
     resetViewport,
     zoomIn,

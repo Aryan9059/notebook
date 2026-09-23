@@ -15,6 +15,7 @@ import {
   loadNotebooksFromDisk,
   deleteNotebookFromDisk,
 } from '../services/storageService.ts';
+import { useUiStore } from './useUiStore.ts';
 
 const MAX_UNDO_STEPS = 50;
 
@@ -49,6 +50,7 @@ interface NotesState {
   addElements: (elements: CanvasElement[]) => void;
   updateElement: (id: string, patch: Partial<CanvasElement>, commitUndo?: boolean) => void;
   moveElement: (id: string, x: number, y: number, commitUndo?: boolean) => void;
+  moveElements: (ids: string[], dx: number, dy: number, commitUndo?: boolean) => void;
   deleteElement: (id: string) => Promise<void>;
   deleteElements: (ids: string[]) => Promise<void>;
   clearCanvas: () => Promise<void>;
@@ -292,29 +294,55 @@ export const useNotesStore = create<NotesState>()(
           .find((n) => n.id === activeNotebookId)
           ?.sections.find((s) => s.id === activeSectionId);
 
+        const SIDE_PADDING = 60;
+        const TOP_PADDING = 90;
+
         if (!section || section.elements.length === 0) {
-          get().setViewport({ x: 0, y: 0, zoom: 1 });
+          get().setViewport({ x: SIDE_PADDING, y: TOP_PADDING, zoom: 1 });
           return;
         }
 
-        let minX = Infinity;
-        let minY = Infinity;
+        // Check if an item is currently selected in useUiStore
+        const { selectedId, selectedIds } = useUiStore.getState();
+        const activeSelectedId = selectedId || selectedIds[0];
+        let targetElement: CanvasElement | undefined;
+        if (activeSelectedId) {
+          targetElement = section.elements.find((el) => el.id === activeSelectedId);
+        }
 
-        for (const el of section.elements) {
-          if (el.type === 'arrow') {
-            minX = Math.min(minX, el.startX, el.endX);
-            minY = Math.min(minY, el.startY, el.endY);
+        let targetX = Infinity;
+        let targetY = Infinity;
+
+        if (targetElement) {
+          if (targetElement.type === 'arrow') {
+            targetX = Math.min(targetElement.startX, targetElement.endX);
+            targetY = Math.min(targetElement.startY, targetElement.endY);
           } else {
-            minX = Math.min(minX, el.x);
-            minY = Math.min(minY, el.y);
+            targetX = targetElement.x;
+            targetY = targetElement.y;
+          }
+        } else {
+          for (const el of section.elements) {
+            if (el.type === 'arrow') {
+              targetX = Math.min(targetX, el.startX, el.endX);
+              targetY = Math.min(targetY, el.startY, el.endY);
+            } else {
+              targetX = Math.min(targetX, el.x);
+              targetY = Math.min(targetY, el.y);
+            }
           }
         }
 
-        // Align viewport so the topmost leftmost element sits comfortably near the top-left (80px, 100px)
-        const targetX = Math.round(80 - minX);
-        const targetY = Math.round(100 - minY);
+        if (!isFinite(targetX) || !isFinite(targetY)) {
+          targetX = 0;
+          targetY = 0;
+        }
 
-        get().setViewport({ x: targetX, y: targetY, zoom: 1 });
+        // Align viewport so the top-left corner of the item matches the top-left corner of the viewport with padding
+        const targetViewportX = Math.round(SIDE_PADDING - targetX);
+        const targetViewportY = Math.round(TOP_PADDING - targetY);
+
+        get().setViewport({ x: targetViewportX, y: targetViewportY, zoom: 1 });
       },
 
       zoomIn: () => {
@@ -496,7 +524,85 @@ export const useNotesStore = create<NotesState>()(
       },
 
       moveElement: (id: string, x: number, y: number, commitUndo = false) => {
+        const { activeNotebookId, activeSectionId, notebooks } = get();
+        const currentSection = notebooks
+          .find((nb) => nb.id === activeNotebookId)
+          ?.sections.find((sec) => sec.id === activeSectionId);
+        const el = currentSection?.elements.find((item) => item.id === id);
+        if (el?.type === 'arrow') {
+          const dx = x - el.x;
+          const dy = y - el.y;
+          get().moveElements([id], dx, dy, commitUndo);
+          return;
+        }
         get().updateElement(id, { x, y } as Partial<CanvasElement>, commitUndo);
+      },
+
+      moveElements: (ids: string[], dx: number, dy: number, commitUndo = false) => {
+        const { activeNotebookId, activeSectionId, notebooks, undoStacks } = get();
+        if (!activeNotebookId || !activeSectionId || ids.length === 0 || (dx === 0 && dy === 0)) return;
+
+        const currentSection = notebooks
+          .find((nb) => nb.id === activeNotebookId)
+          ?.sections.find((sec) => sec.id === activeSectionId);
+
+        if (!currentSection) return;
+
+        const idSet = new Set(ids);
+        let nextUndoStacks = undoStacks;
+        let nextRedoStacks = get().redoStacks;
+
+        if (commitUndo) {
+          const currentStack = undoStacks[activeSectionId] || [];
+          nextUndoStacks = {
+            ...undoStacks,
+            [activeSectionId]: [...currentStack, cloneElements(currentSection.elements)].slice(-MAX_UNDO_STEPS),
+          };
+          nextRedoStacks = { ...nextRedoStacks, [activeSectionId]: [] };
+        }
+
+        set((state) => ({
+          undoStacks: nextUndoStacks,
+          redoStacks: nextRedoStacks,
+          notebooks: state.notebooks.map((nb) =>
+            nb.id === activeNotebookId
+              ? {
+                  ...nb,
+                  updatedAt: Date.now(),
+                  sections: nb.sections.map((sec) =>
+                    sec.id === activeSectionId
+                      ? {
+                          ...sec,
+                          elements: sec.elements.map((el) => {
+                            if (!idSet.has(el.id)) return el;
+                            if (el.type === 'arrow') {
+                              const nextStartX = el.startX + dx;
+                              const nextStartY = el.startY + dy;
+                              const nextEndX = el.endX + dx;
+                              const nextEndY = el.endY + dy;
+                              return {
+                                ...el,
+                                startX: nextStartX,
+                                startY: nextStartY,
+                                endX: nextEndX,
+                                endY: nextEndY,
+                                x: Math.min(nextStartX, nextEndX),
+                                y: Math.min(nextStartY, nextEndY),
+                              };
+                            }
+                            return {
+                              ...el,
+                              x: el.x + dx,
+                              y: el.y + dy,
+                            };
+                          }),
+                        }
+                      : sec
+                  ),
+                }
+              : nb
+          ),
+        }));
       },
 
       deleteElements: async (ids: string[]) => {
@@ -783,7 +889,10 @@ export const useNotesStore = create<NotesState>()(
 
 // Auto-save debounced subscriber to persist all changes to ~/Documents/Notebook/notebooks.json
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSavedNotebooks: Notebook[] | null = null;
 useNotesStore.subscribe((state) => {
+  if (state.notebooks === lastSavedNotebooks) return;
+  lastSavedNotebooks = state.notebooks;
   if (autoSaveTimer) clearTimeout(autoSaveTimer);
   autoSaveTimer = setTimeout(() => {
     saveNotebooksToDisk(state.notebooks).catch((err) => {

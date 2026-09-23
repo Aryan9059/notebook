@@ -497,13 +497,18 @@ export async function exportSectionToPdf(
         const dy = el.endY - el.startY;
         const dist = Math.hypot(dx, dy);
         const safeDist = Math.max(dist, 1);
+        const nx = -dy / safeDist;
         const ny = dx / safeDist;
         const h = el.controlOffset !== undefined ? el.controlOffset : Math.max(28, Math.min(260, safeDist * 0.28));
+        const cx = (el.startX + el.endX) / 2 + nx * h;
         const cy = (el.startY + el.endY) / 2 + ny * h;
 
+        const minArrowX = Math.min(el.startX, el.endX, cx) - 30;
+        const maxArrowX = Math.max(el.startX, el.endX, cx) + 30;
         const minArrowY = Math.min(el.startY, el.endY, cy) - 30;
         const maxArrowY = Math.max(el.startY, el.endY, cy) + 30;
-        if (maxArrowY < pageTop || minArrowY > pageBottom) continue;
+        if (maxArrowX < pageLeft || minArrowX > pageLeft + pageCanvasWidth ||
+            maxArrowY < pageTop || minArrowY > pageBottom) continue;
 
         drawArrowOnCanvas(ctx, el, pageLeft, pageTop, scale);
       }

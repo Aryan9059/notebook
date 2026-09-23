@@ -23,6 +23,7 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
 
   // Store actions
   const moveElement = useNotesStore((state) => state.moveElement);
+  const moveElements = useNotesStore((state) => state.moveElements);
   const updateElement = useNotesStore((state) => state.updateElement);
   const deleteElement = useNotesStore((state) => state.deleteElement);
 
@@ -36,7 +37,14 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
 
   // Drag interaction refs
   const isDraggingRef = useRef(false);
-  const dragStartRef = useRef<{ clientX: number; clientY: number; elX: number; elY: number } | null>(null);
+  const dragStartRef = useRef<{
+    clientX: number;
+    clientY: number;
+    elX: number;
+    elY: number;
+    draggedIds: string[];
+    startPositions: Record<string, { type: string; x: number; y: number }>;
+  } | null>(null);
 
   // Resize interaction refs
   const isResizingRef = useRef(false);
@@ -100,16 +108,38 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
       }
 
       e.stopPropagation();
+      const { selectedIds, selectedId } = useUiStore.getState();
+      const isPartOfMultiSelect = selectedIds.includes(element.id) && selectedIds.length > 1;
+
+      if (!isPartOfMultiSelect && selectedId !== element.id) {
+        setSelectedId(element.id);
+      }
+
       e.currentTarget.setPointerCapture(e.pointerId);
       isDraggingRef.current = true;
+
+      const state = useNotesStore.getState();
+      const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+      const currentSec = currentNb?.sections.find((s) => s.id === state.activeSectionId);
+
+      const draggedIds = isPartOfMultiSelect ? selectedIds : [element.id];
+      const startPositions: Record<string, { type: string; x: number; y: number }> = {};
+
+      for (const id of draggedIds) {
+        const el = currentSec?.elements.find((item) => item.id === id);
+        if (el) {
+          startPositions[id] = { type: el.type, x: el.x, y: el.y };
+        }
+      }
+
       dragStartRef.current = {
         clientX: e.clientX,
         clientY: e.clientY,
         elX: element.x,
         elY: element.y,
+        draggedIds,
+        startPositions,
       };
-
-      setSelectedId(element.id);
     },
     [element.id, element.isLocked, element.x, element.y, setSelectedId, activeTool]
   );
@@ -126,25 +156,66 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
       const dx = (e.clientX - dragStartRef.current.clientX) / currentZoom;
       const dy = (e.clientY - dragStartRef.current.clientY) / currentZoom;
 
-      moveElement(element.id, dragStartRef.current.elX + dx, dragStartRef.current.elY + dy, false);
+      const draggedIds = dragStartRef.current.draggedIds;
+      for (const id of draggedIds) {
+        const orig = dragStartRef.current.startPositions[id];
+        if (orig) {
+          const nextX = orig.x + dx;
+          const nextY = orig.y + dy;
+          const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
+          if (node) {
+            if (orig.type === 'arrow') {
+              node.style.transform = `translate(${dx}px, ${dy}px)`;
+            } else {
+              node.style.transform = `translate(${nextX}px, ${nextY}px)`;
+            }
+          }
+        }
+      }
     },
-    [element.id, moveElement]
+    []
   );
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
-      if (isDraggingRef.current) {
+      if (isDraggingRef.current && dragStartRef.current) {
         try {
           e.currentTarget.releasePointerCapture(e.pointerId);
         } catch {
           // pointer may already be released
         }
         isDraggingRef.current = false;
+
+        const state = useNotesStore.getState();
+        const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+        const currentSec = currentNb?.sections.find((s) => s.id === state.activeSectionId);
+        const currentZoom = currentSec?.viewport.zoom ?? 1;
+
+        const dx = (e.clientX - dragStartRef.current.clientX) / currentZoom;
+        const dy = (e.clientY - dragStartRef.current.clientY) / currentZoom;
+        const draggedIds = dragStartRef.current.draggedIds;
+        const startPositions = dragStartRef.current.startPositions;
         dragStartRef.current = null;
-        useNotesStore.getState().commitUndoSnapshot();
+
+        // Clear temporary CSS transform on all dragged arrows so SVG paths take over at new coords
+        for (const id of draggedIds) {
+          const orig = startPositions[id];
+          if (orig?.type === 'arrow') {
+            const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
+            if (node) {
+              node.style.transform = '';
+            }
+          }
+        }
+
+        if (draggedIds.length > 1) {
+          moveElements(draggedIds, dx, dy, true);
+        } else {
+          moveElement(element.id, element.x + dx, element.y + dy, true);
+        }
       }
     },
-    []
+    [element.id, element.x, element.y, moveElement, moveElements]
   );
 
   // Resize pointer handlers
@@ -193,18 +264,24 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
       nextWidth = Math.max(80, Math.round(start.startWidth - dx));
       nextHeight = Math.max(60, Math.round(nextWidth / aspectRatio));
       const nextX = start.startX - (nextWidth - start.startWidth);
-      moveElement(element.id, nextX, start.startY, false);
+      if (cardRef.current) {
+        cardRef.current.style.transform = `translate(${nextX}px, ${start.startY}px)`;
+      }
     } else if (start.handle === 'ne') {
       nextWidth = Math.max(80, Math.round(start.startWidth + dx));
       nextHeight = Math.max(60, Math.round(nextWidth / aspectRatio));
       const nextY = start.startY - (nextHeight - start.startHeight);
-      moveElement(element.id, start.startX, nextY, false);
+      if (cardRef.current) {
+        cardRef.current.style.transform = `translate(${start.startX}px, ${nextY}px)`;
+      }
     } else if (start.handle === 'nw') {
       nextWidth = Math.max(80, Math.round(start.startWidth - dx));
       nextHeight = Math.max(60, Math.round(nextWidth / aspectRatio));
       const nextX = start.startX - (nextWidth - start.startWidth);
       const nextY = start.startY - (nextHeight - start.startHeight);
-      moveElement(element.id, nextX, nextY, false);
+      if (cardRef.current) {
+        cardRef.current.style.transform = `translate(${nextX}px, ${nextY}px)`;
+      }
     }
 
     currentDimensionsRef.current = { width: nextWidth, height: nextHeight };
@@ -221,8 +298,28 @@ const ImageCardInner: FC<ImageCardProps> = ({ element, onDoubleClickLocked }) =>
       } catch {
         // Ignored
       }
+      const start = resizeStartRef.current;
       isResizingRef.current = false;
       resizeStartRef.current = null;
+
+      if (start && (start.handle === 'sw' || start.handle === 'ne' || start.handle === 'nw')) {
+        const finalWidth = currentDimensionsRef.current.width;
+        const finalHeight = currentDimensionsRef.current.height;
+        let finalX = start.startX;
+        let finalY = start.startY;
+
+        if (start.handle === 'sw') {
+          finalX = start.startX - (finalWidth - start.startWidth);
+        } else if (start.handle === 'ne') {
+          finalY = start.startY - (finalHeight - start.startHeight);
+        } else if (start.handle === 'nw') {
+          finalX = start.startX - (finalWidth - start.startWidth);
+          finalY = start.startY - (finalHeight - start.startHeight);
+        }
+
+        moveElement(element.id, finalX, finalY, false);
+      }
+
       updateElement(
         element.id,
         {

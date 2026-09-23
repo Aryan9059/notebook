@@ -19,6 +19,7 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
   const isDark = theme === 'dark';
 
   const updateElement = useNotesStore((state) => state.updateElement);
+  const moveElements = useNotesStore((state) => state.moveElements);
   const deleteElement = useNotesStore((state) => state.deleteElement);
 
   const isSelected = selectedId === element.id || selectedIds.includes(element.id);
@@ -36,6 +37,8 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
     endX: number;
     endY: number;
     controlOffset: number;
+    draggedIds?: string[];
+    startPositions?: Record<string, { type: string; x: number; y: number }>;
   } | null>(null);
 
   const { startX, startY, endX, endY } = element;
@@ -128,11 +131,35 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
     (e: React.PointerEvent, handleType: 'start' | 'end' | 'control' | 'body') => {
       if (activeTool === 'hand' || activeTool === 'arrow') return;
       e.stopPropagation();
-      setSelectedId(element.id);
+
+      const { selectedIds, selectedId } = useUiStore.getState();
+      const isPartOfMultiSelect = handleType === 'body' && selectedIds.includes(element.id) && selectedIds.length > 1;
+
+      if (!isPartOfMultiSelect && selectedId !== element.id) {
+        setSelectedId(element.id);
+      }
 
       if (e.button !== 0) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       isDraggingHandleRef.current = handleType;
+
+      let draggedIds: string[] | undefined;
+      let startPositions: Record<string, { type: string; x: number; y: number }> | undefined;
+
+      if (isPartOfMultiSelect) {
+        draggedIds = selectedIds;
+        startPositions = {};
+        const state = useNotesStore.getState();
+        const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+        const currentSec = currentNb?.sections.find((s) => s.id === state.activeSectionId);
+        for (const id of draggedIds) {
+          const el = currentSec?.elements.find((item) => item.id === id);
+          if (el) {
+            startPositions[id] = { type: el.type, x: el.x, y: el.y };
+          }
+        }
+      }
+
       dragStartRef.current = {
         clientX: e.clientX,
         clientY: e.clientY,
@@ -141,6 +168,8 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
         endX: element.endX,
         endY: element.endY,
         controlOffset: h,
+        draggedIds,
+        startPositions,
       };
     },
     [activeTool, element.id, element.startX, element.startY, element.endX, element.endY, h, setSelectedId]
@@ -175,16 +204,27 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
         const nextOffset = dragStartRef.current.controlOffset + deltaOffset;
         updateElement(element.id, { controlOffset: nextOffset }, false);
       } else if (handle === 'body') {
-        updateElement(
-          element.id,
-          {
-            startX: dragStartRef.current.startX + dCanvasX,
-            startY: dragStartRef.current.startY + dCanvasY,
-            endX: dragStartRef.current.endX + dCanvasX,
-            endY: dragStartRef.current.endY + dCanvasY,
-          },
-          false
-        );
+        const draggedIds = dragStartRef.current.draggedIds;
+        if (draggedIds && draggedIds.length > 1 && dragStartRef.current.startPositions) {
+          for (const id of draggedIds) {
+            const pos = dragStartRef.current.startPositions[id];
+            if (pos) {
+              const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
+              if (node) {
+                if (pos.type === 'arrow') {
+                  node.style.transform = `translate(${dCanvasX}px, ${dCanvasY}px)`;
+                } else {
+                  node.style.transform = `translate(${pos.x + dCanvasX}px, ${pos.y + dCanvasY}px)`;
+                }
+              }
+            }
+          }
+        } else {
+          const node = document.querySelector<HTMLElement>(`[data-element-id="${element.id}"]`);
+          if (node) {
+            node.style.transform = `translate(${dCanvasX}px, ${dCanvasY}px)`;
+          }
+        }
       }
     },
     [element.id, nx, ny, updateElement]
@@ -192,16 +232,47 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
-      if (isDraggingHandleRef.current) {
+      if (isDraggingHandleRef.current && dragStartRef.current) {
         try {
           e.currentTarget.releasePointerCapture(e.pointerId);
         } catch {}
+
+        const handle = isDraggingHandleRef.current;
+        const draggedIds = dragStartRef.current.draggedIds;
+
+        const state = useNotesStore.getState();
+        const currentNb = state.notebooks.find((nb) => nb.id === state.activeNotebookId);
+        const currentSec = currentNb?.sections.find((s) => s.id === state.activeSectionId);
+        const zoom = currentSec?.viewport.zoom ?? 1;
+
+        const dCanvasX = (e.clientX - dragStartRef.current.clientX) / zoom;
+        const dCanvasY = (e.clientY - dragStartRef.current.clientY) / zoom;
+
         isDraggingHandleRef.current = null;
         dragStartRef.current = null;
-        useNotesStore.getState().commitUndoSnapshot();
+
+        if (handle === 'body') {
+          const targetIds = draggedIds && draggedIds.length > 0 ? draggedIds : [element.id];
+          // Clear temporary CSS transform on all dragged arrows so SVG paths take over at new coords
+          for (const id of targetIds) {
+            const el = currentSec?.elements.find((item) => item.id === id);
+            if (el?.type === 'arrow') {
+              const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
+              if (node) {
+                node.style.transform = '';
+              }
+            }
+          }
+
+          if (dCanvasX !== 0 || dCanvasY !== 0) {
+            moveElements(targetIds, dCanvasX, dCanvasY, true);
+          }
+        } else {
+          useNotesStore.getState().commitUndoSnapshot();
+        }
       }
     },
-    []
+    [element.id, moveElements]
   );
 
   // Toggle arrow head position (start vs end vs both)
@@ -227,6 +298,7 @@ const ArrowCardInner: FC<ArrowCardProps> = ({ element }) => {
   return (
     <div
       id={`arrow-${element.id}`}
+      data-element-id={element.id}
       className="absolute top-0 left-0 overflow-visible pointer-events-none select-none"
       style={{
         zIndex: element.zIndex || 500,

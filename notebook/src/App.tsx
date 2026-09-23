@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, type ChangeEvent } from 'react';
+import { useRef, useEffect, useState, useCallback, type ChangeEvent } from 'react';
 import { useNotesStore } from './store/useNotesStore';
 import { useUiStore } from './store/useUiStore';
 import { collectGarbage, putPageImage } from './store/imageStore';
@@ -41,28 +41,49 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
-  const showToast = (msg: string) => {
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
-  };
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), 4000);
+  }, []);
+
+  const showToastRef = useRef(showToast);
+  showToastRef.current = showToast;
 
   useEffect(() => {
     const onToast = (e: Event) => {
       const customEv = e as CustomEvent<string>;
       if (customEv.detail) {
-        showToast(customEv.detail);
+        showToastRef.current(customEv.detail);
       }
     };
     window.addEventListener('inkwell-toast', onToast);
     return () => window.removeEventListener('inkwell-toast', onToast);
   }, []);
 
-  // Global Command + K / Ctrl + K shortcut to open search and quick switcher
+  // Global shortcuts: Command + K (Search) and Ctrl + B (Sidebar)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K' || e.code === 'KeyK')) {
         e.preventDefault();
         setIsCommandPaletteOpen((prev) => !prev);
+        return;
+      }
+
+      const isB = e.key === 'b' || e.key === 'B' || e.code === 'KeyB';
+      if (isB) {
+        const target = e.target as HTMLElement | null;
+        const isInput =
+          target?.tagName === 'INPUT' ||
+          target?.tagName === 'TEXTAREA' ||
+          target?.isContentEditable ||
+          Boolean(target?.closest('.ProseMirror'));
+
+        if (e.ctrlKey || (!isInput && e.metaKey)) {
+          e.preventDefault();
+          useUiStore.getState().toggleSidebar();
+        }
       }
     };
 

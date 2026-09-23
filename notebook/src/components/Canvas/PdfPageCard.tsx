@@ -24,7 +24,14 @@ const PdfPageCardInner: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked }
   // Ref-based drag state — zero React re-renders during drag
   const isDraggingRef = useRef(false);
   const posRef = useRef({ x: element.x, y: element.y });
-  const dragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null);
+  const dragStartRef = useRef<{
+    clientX: number;
+    clientY: number;
+    startX: number;
+    startY: number;
+    draggedIds: string[];
+    startPositions: Record<string, { type: string; x: number; y: number }>;
+  } | null>(null);
 
   // Resize interaction refs
   const isResizingRef = useRef(false);
@@ -41,6 +48,7 @@ const PdfPageCardInner: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked }
 
   // Store actions
   const moveElement = useNotesStore((state) => state.moveElement);
+  const moveElements = useNotesStore((state) => state.moveElements);
   const updateElement = useNotesStore((state) => state.updateElement);
   const deleteElement = useNotesStore((state) => state.deleteElement);
 
@@ -124,15 +132,37 @@ const PdfPageCardInner: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked }
       }
 
       e.stopPropagation();
-      setSelectedId(element.id);
+      const { selectedIds, selectedId } = useUiStore.getState();
+      const isPartOfMultiSelect = selectedIds.includes(element.id) && selectedIds.length > 1;
+
+      if (!isPartOfMultiSelect && selectedId !== element.id) {
+        setSelectedId(element.id);
+      }
 
       e.currentTarget.setPointerCapture(e.pointerId);
       isDraggingRef.current = true;
+
+      const state = useNotesStore.getState();
+      const activeNb = state.notebooks.find((n) => n.id === state.activeNotebookId);
+      const activeSec = activeNb?.sections.find((s) => s.id === state.activeSectionId);
+
+      const draggedIds = isPartOfMultiSelect ? selectedIds : [element.id];
+      const startPositions: Record<string, { type: string; x: number; y: number }> = {};
+
+      for (const id of draggedIds) {
+        const el = activeSec?.elements.find((item) => item.id === id);
+        if (el) {
+          startPositions[id] = { type: el.type, x: el.x, y: el.y };
+        }
+      }
+
       dragStartRef.current = {
         clientX: e.clientX,
         clientY: e.clientY,
         startX: posRef.current.x,
         startY: posRef.current.y,
+        draggedIds,
+        startPositions,
       };
     },
     [element.id, element.isLocked, activeTool, setSelectedId]
@@ -149,26 +179,63 @@ const PdfPageCardInner: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked }
     const dxCanvas = (e.clientX - dragStartRef.current.clientX) / zoom;
     const dyCanvas = (e.clientY - dragStartRef.current.clientY) / zoom;
 
-    const nextX = dragStartRef.current.startX + dxCanvas;
-    const nextY = dragStartRef.current.startY + dyCanvas;
-    posRef.current = { x: nextX, y: nextY };
-
-    // Direct DOM mutation — no React re-render
-    if (cardRef.current) {
-      cardRef.current.style.transform = `translate(${nextX}px, ${nextY}px)`;
+    const draggedIds = dragStartRef.current.draggedIds;
+    for (const id of draggedIds) {
+      const orig = dragStartRef.current.startPositions[id];
+      if (orig) {
+        const nextX = orig.x + dxCanvas;
+        const nextY = orig.y + dyCanvas;
+        const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
+        if (node) {
+          if (orig.type === 'arrow') {
+            node.style.transform = `translate(${dxCanvas}px, ${dyCanvas}px)`;
+          } else {
+            node.style.transform = `translate(${nextX}px, ${nextY}px)`;
+          }
+        }
+        if (id === element.id) {
+          posRef.current = { x: nextX, y: nextY };
+        }
+      }
     }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (isDraggingRef.current) {
+    if (isDraggingRef.current && dragStartRef.current) {
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
       } catch {
         // Pointer might already be released
       }
       isDraggingRef.current = false;
+
+      const state = useNotesStore.getState();
+      const activeNb = state.notebooks.find((n) => n.id === state.activeNotebookId);
+      const activeSec = activeNb?.sections.find((s) => s.id === state.activeSectionId);
+      const zoom = activeSec?.viewport.zoom ?? 1;
+
+      const dxCanvas = (e.clientX - dragStartRef.current.clientX) / zoom;
+      const dyCanvas = (e.clientY - dragStartRef.current.clientY) / zoom;
+      const draggedIds = dragStartRef.current.draggedIds;
+      const startPositions = dragStartRef.current.startPositions;
       dragStartRef.current = null;
-      moveElement(element.id, posRef.current.x, posRef.current.y, true);
+
+      // Clear temporary CSS transform on all dragged arrows so SVG paths take over at new coords
+      for (const id of draggedIds) {
+        const orig = startPositions[id];
+        if (orig?.type === 'arrow') {
+          const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
+          if (node) {
+            node.style.transform = '';
+          }
+        }
+      }
+
+      if (draggedIds.length > 1) {
+        moveElements(draggedIds, dxCanvas, dyCanvas, true);
+      } else {
+        moveElement(element.id, posRef.current.x, posRef.current.y, true);
+      }
     }
   };
 
@@ -278,6 +345,7 @@ const PdfPageCardInner: FC<PdfPageCardProps> = ({ element, onDoubleClickLocked }
     <div
       ref={cardRef}
       id={`pdf-page-${element.id}`}
+      data-element-id={element.id}
       onClick={handleCardClick}
       onDoubleClick={handleDoubleClick}
       onPointerDown={handlePointerDown}

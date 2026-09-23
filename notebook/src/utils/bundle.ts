@@ -22,6 +22,9 @@ function blobToBase64(blob: Blob): Promise<string> {
 
 function base64ToBlob(base64: string): Blob {
   const parts = base64.split(';base64,');
+  if (parts.length < 2) {
+    throw new Error('Invalid base64 data URL format');
+  }
   const contentType = parts[0].split(':')[1] || 'image/jpeg';
   const raw = window.atob(parts[1]);
   const rawLength = raw.length;
