@@ -789,47 +789,44 @@ export const useNotesStore = create<NotesState>()(
       hydrateFromDisk: async () => {
         try {
           const diskNotebooks = await loadNotebooksFromDisk();
-          if (diskNotebooks && diskNotebooks.length > 0) {
-            const currentNotebooks = get().notebooks;
-            let mergedNotebooks = diskNotebooks;
-            if (currentNotebooks && currentNotebooks.length > 0) {
-              const localIds = new Set(currentNotebooks.map((n) => n.id));
-              const missingFromLocal = diskNotebooks.filter((n) => !localIds.has(n.id));
-              mergedNotebooks = [...currentNotebooks, ...missingFromLocal];
-            }
 
-            // Automatically restore the notebook on which the app was closed
-            let nextActiveId = get().activeNotebookId;
-            if (!nextActiveId && typeof localStorage !== 'undefined') {
-              nextActiveId = localStorage.getItem('inkwell_last_opened_notebook');
-            }
-            let activeNb = mergedNotebooks.find((n) => n.id === nextActiveId);
+          // Disk is the source of truth — use exactly what is on disk.
+          // This ensures deleted notebooks (whose folders were removed) never reappear.
+          const notebooksToLoad = diskNotebooks && diskNotebooks.length > 0 ? diskNotebooks : [];
 
-            if (!activeNb) {
-              const sorted = [...mergedNotebooks].sort(
-                (a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)
-              );
-              activeNb = sorted[0];
-              nextActiveId = activeNb?.id ?? null;
-            }
-
-            if (nextActiveId) {
-              try {
-                localStorage.setItem('inkwell_last_opened_notebook', nextActiveId);
-              } catch (_) {}
-            }
-
-            const activeSecId =
-              activeNb && get().activeSectionId && activeNb.sections.some((s) => s.id === get().activeSectionId)
-                ? get().activeSectionId
-                : (activeNb?.sections[0]?.id ?? null);
-
-            set({
-              notebooks: mergedNotebooks,
-              activeNotebookId: nextActiveId,
-              activeSectionId: activeSecId,
-            });
+          // Restore the last active notebook/section selection
+          let nextActiveId = get().activeNotebookId;
+          if (!nextActiveId && typeof localStorage !== 'undefined') {
+            nextActiveId = localStorage.getItem('inkwell_last_opened_notebook');
           }
+          let activeNb = notebooksToLoad.find((n) => n.id === nextActiveId);
+
+          if (!activeNb && notebooksToLoad.length > 0) {
+            const sorted = [...notebooksToLoad].sort(
+              (a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)
+            );
+            activeNb = sorted[0];
+            nextActiveId = activeNb?.id ?? null;
+          } else if (!activeNb) {
+            nextActiveId = null;
+          }
+
+          if (nextActiveId) {
+            try {
+              localStorage.setItem('inkwell_last_opened_notebook', nextActiveId);
+            } catch (_) {}
+          }
+
+          const activeSecId =
+            activeNb && get().activeSectionId && activeNb.sections.some((s) => s.id === get().activeSectionId)
+              ? get().activeSectionId
+              : (activeNb?.sections[0]?.id ?? null);
+
+          set({
+            notebooks: notebooksToLoad,
+            activeNotebookId: nextActiveId,
+            activeSectionId: activeSecId,
+          });
         } catch (err) {
           console.warn('[STORAGE] hydrateFromDisk failed:', err);
         }

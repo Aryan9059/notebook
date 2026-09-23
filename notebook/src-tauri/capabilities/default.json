@@ -15,6 +15,10 @@
     "fs:default",
     "fs:allow-read-file",
     "fs:allow-write-file",
+    "fs:allow-remove",
+    "fs:allow-mkdir",
+    "fs:allow-read-dir",
+    "fs:allow-exists",
     { "identifier": "fs:scope", "allow": [{ "path": "$HOME/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "**" }] }
   ]
 }

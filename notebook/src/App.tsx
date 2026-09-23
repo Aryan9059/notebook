@@ -527,6 +527,7 @@ export default function App() {
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
+        mode={activeNotebookId ? 'sections' : 'notebooks'}
       />
 
       {/* If no notebook is active, render StartScreen */}

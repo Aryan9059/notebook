@@ -6,7 +6,7 @@ import {
   type FC,
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
-import { Search, Layers, Notebook as NotebookIcon, CornerDownLeft } from 'lucide-react';
+import { Search, Layers, Notebook as NotebookIcon, CornerDownLeft, ArrowRightLeft } from 'lucide-react';
 import { useNotesStore } from '../../store/useNotesStore';
 import {
   searchAndRankItems,
@@ -17,9 +17,11 @@ import {
 interface CommandPaletteProps {
   isOpen: boolean;
   onClose: () => void;
+  /** 'notebooks' = start screen (show only notebooks). 'sections' = inside a notebook (show sections; typing > switches to notebook switcher). */
+  mode?: 'notebooks' | 'sections';
 }
 
-export const CommandPalette: FC<CommandPaletteProps> = ({ isOpen, onClose }) => {
+export const CommandPalette: FC<CommandPaletteProps> = ({ isOpen, onClose, mode = 'sections' }) => {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
@@ -32,54 +34,60 @@ export const CommandPalette: FC<CommandPaletteProps> = ({ isOpen, onClose }) => 
   const setActiveNotebook = useNotesStore((state) => state.setActiveNotebook);
   const navigateToSection = useNotesStore((state) => state.navigateToSection);
 
-  // Flatten all notebooks and sections into searchable items
+  // When in 'sections' mode and query starts with '>', switch to notebook switcher
+  const isNotebookSwitcher = mode === 'sections' && query.startsWith('>');
+  const effectiveQuery = isNotebookSwitcher ? query.slice(1).trimStart() : query;
+
+  // Build search items based on effective mode
   const allSearchItems = useMemo<SearchItem[]>(() => {
     const items: SearchItem[] = [];
 
-    for (const nb of notebooks) {
-      const isCurrentNb = nb.id === activeNotebookId;
-
-      // Add all sections for this notebook
-      for (const sec of nb.sections) {
+    if (mode === 'notebooks' || isNotebookSwitcher) {
+      // Show all notebooks
+      for (const nb of notebooks) {
+        const isCurrentNb = nb.id === activeNotebookId;
         items.push({
-          id: `section-${nb.id}-${sec.id}`,
-          type: 'section',
-          title: sec.name,
+          id: `notebook-${nb.id}`,
+          type: 'notebook',
+          title: nb.name,
           notebookId: nb.id,
           notebookName: nb.name,
-          sectionId: sec.id,
+          sectionCount: nb.sections.length,
           isCurrentNotebook: isCurrentNb,
-          isCurrentNotebookSection: isCurrentNb,
+          isCurrentNotebookSection: false,
         });
       }
-
-      // Add notebook itself
-      items.push({
-        id: `notebook-${nb.id}`,
-        type: 'notebook',
-        title: nb.name,
-        notebookId: nb.id,
-        notebookName: nb.name,
-        sectionCount: nb.sections.length,
-        isCurrentNotebook: isCurrentNb,
-        isCurrentNotebookSection: false,
-      });
+    } else {
+      // Inside a notebook: only sections of the active notebook
+      const activeNb = notebooks.find((nb) => nb.id === activeNotebookId);
+      if (activeNb) {
+        for (const sec of activeNb.sections) {
+          items.push({
+            id: `section-${activeNb.id}-${sec.id}`,
+            type: 'section',
+            title: sec.name,
+            notebookId: activeNb.id,
+            notebookName: activeNb.name,
+            sectionId: sec.id,
+            isCurrentNotebook: true,
+            isCurrentNotebookSection: true,
+          });
+        }
+      }
     }
 
     return items;
-  }, [notebooks, activeNotebookId]);
+  }, [notebooks, activeNotebookId, mode, isNotebookSwitcher]);
 
-  // Filter and rank items with fuzzy search and current notebook collision priority
   const results: ScoredSearchItem[] = useMemo(() => {
-    return searchAndRankItems(allSearchItems, query);
-  }, [allSearchItems, query]);
+    return searchAndRankItems(allSearchItems, effectiveQuery);
+  }, [allSearchItems, effectiveQuery]);
 
-  // Reset state when opening/closing or when query changes
+  // Reset state on open
   useEffect(() => {
     if (isOpen) {
       setQuery('');
       setSelectedIndex(0);
-      // Small timeout ensures focus after animation frame
       setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
@@ -87,18 +95,11 @@ export const CommandPalette: FC<CommandPaletteProps> = ({ isOpen, onClose }) => 
     }
   }, [isOpen]);
 
-  // Keep selected index within bounds and reset to 0 on new query
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
+  useEffect(() => { setSelectedIndex(0); }, [query]);
 
-  // Scroll selected item into view smoothly
   useEffect(() => {
     if (itemRefs.current[selectedIndex]) {
-      itemRefs.current[selectedIndex]?.scrollIntoView({
-        block: 'nearest',
-        behavior: 'smooth',
-      });
+      itemRefs.current[selectedIndex]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [selectedIndex]);
 
@@ -107,13 +108,11 @@ export const CommandPalette: FC<CommandPaletteProps> = ({ isOpen, onClose }) => 
   const handleSelect = (scoredItem?: ScoredSearchItem) => {
     if (!scoredItem) return;
     const item = scoredItem.item;
-
     if (item.type === 'section' && item.sectionId) {
       navigateToSection(item.notebookId, item.sectionId);
     } else if (item.type === 'notebook') {
       setActiveNotebook(item.notebookId);
     }
-
     onClose();
   };
 
@@ -128,9 +127,7 @@ export const CommandPalette: FC<CommandPaletteProps> = ({ isOpen, onClose }) => 
       setSelectedIndex((prev) => (prev - 1 + results.length) % results.length);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (results[selectedIndex]) {
-        handleSelect(results[selectedIndex]);
-      }
+      if (results[selectedIndex]) handleSelect(results[selectedIndex]);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
@@ -138,68 +135,83 @@ export const CommandPalette: FC<CommandPaletteProps> = ({ isOpen, onClose }) => 
   };
 
   const renderTitle = (title: string, indices: number[]) => {
-    if (!indices || indices.length === 0) {
-      return <span>{title}</span>;
-    }
-
+    if (!indices || indices.length === 0) return <span>{title}</span>;
     const indexSet = new Set(indices);
     return (
       <span>
-        {title.split('').map((char, idx) => {
-          if (indexSet.has(idx)) {
-            return (
-              <span
-                key={idx}
-                className="font-bold text-black dark:text-white underline decoration-black/30 dark:decoration-white/30"
-              >
-                {char}
-              </span>
-            );
-          }
-          return <span key={idx}>{char}</span>;
-        })}
+        {title.split('').map((char, idx) =>
+          indexSet.has(idx) ? (
+            <span key={idx} className="font-bold text-white underline decoration-white/30">{char}</span>
+          ) : (
+            <span key={idx}>{char}</span>
+          )
+        )}
       </span>
     );
   };
 
+  const getPlaceholder = () => {
+    if (isNotebookSwitcher) return 'Switch to notebook…';
+    if (mode === 'notebooks') return 'Search notebooks…';
+    return 'Search sections…  type > to switch notebooks';
+  };
+
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/15 dark:bg-black/35 backdrop-blur-[2px] animate-fade-in p-4 select-none"
+      className="fixed inset-0 z-[9999] flex items-start justify-center pt-[15vh] p-4 select-none"
+      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[560px] max-h-[82vh] rounded-2xl bg-white/95 dark:bg-[#202020]/98 backdrop-blur-2xl border border-black/[0.08] dark:border-white/10 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.28)] dark:shadow-[0_24px_60px_-12px_rgba(0,0,0,0.7)] flex flex-col overflow-hidden no-drag transition-colors"
+        className="w-full max-w-[580px] rounded-2xl flex flex-col overflow-hidden no-drag"
+        style={{
+          background: 'rgba(12,16,28,0.82)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          backdropFilter: 'blur(32px)',
+          WebkitBackdropFilter: 'blur(32px)',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search Input Bar */}
-        <div className="flex items-center px-4 py-3.5 border-b border-black/[0.06] dark:border-white/[0.08] gap-3">
-          <Search size={18} className="text-gray-400 dark:text-gray-400 shrink-0" />
+        {/* Search Input */}
+        <div
+          className="flex items-center px-4 py-3.5 gap-3"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+        >
+          {/* Icon: switch between search and switcher icon */}
+          {isNotebookSwitcher ? (
+            <ArrowRightLeft size={16} className="text-emerald-400 shrink-0" />
+          ) : (
+            <Search size={16} className="text-white/35 shrink-0" />
+          )}
+
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search sections or notebooks…"
-            className="flex-1 bg-transparent text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 outline-none font-normal"
+            placeholder={getPlaceholder()}
+            className="flex-1 bg-transparent text-[14px] text-white/90 placeholder-white/25 outline-none font-normal"
           />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <kbd className="px-1.5 py-0.5 text-[10px] font-medium tracking-wide bg-black/[0.05] dark:bg-white/10 text-gray-500 dark:text-gray-400 rounded-md border border-black/[0.06] dark:border-white/10">
-              ESC
-            </kbd>
-          </div>
+
+          <kbd
+            className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium tracking-wide rounded-md text-white/30"
+            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
+          >
+            ESC
+          </kbd>
         </div>
 
         {/* Results List */}
-        <div
-          ref={listRef}
-          className="flex-1 overflow-y-auto p-2 space-y-1 max-h-[380px] min-h-[140px]"
-        >
+        <div ref={listRef} className="flex-1 overflow-y-auto p-2 space-y-0.5 max-h-[400px] min-h-[120px]">
           {results.length === 0 ? (
-            <div className="py-12 px-4 text-center text-gray-400 dark:text-gray-500">
-              <Search size={28} className="mx-auto mb-2 opacity-35" />
-              <p className="text-xs font-medium">
-                No sections or notebooks matching &ldquo;{query}&rdquo;
+            <div className="py-14 px-4 text-center">
+              <Search size={26} className="mx-auto mb-3 text-white/15" />
+              <p className="text-xs font-medium text-white/30">
+                {effectiveQuery
+                  ? `No ${isNotebookSwitcher || mode === 'notebooks' ? 'notebooks' : 'sections'} matching "${effectiveQuery}"`
+                  : `No ${isNotebookSwitcher || mode === 'notebooks' ? 'notebooks' : 'sections'} found`}
               </p>
             </div>
           ) : (
@@ -211,64 +223,68 @@ export const CommandPalette: FC<CommandPaletteProps> = ({ isOpen, onClose }) => 
               return (
                 <div
                   key={item.id}
-                  ref={(el) => {
-                    itemRefs.current[index] = el;
-                  }}
+                  ref={(el) => { itemRefs.current[index] = el; }}
                   onMouseEnter={() => setSelectedIndex(index)}
                   onClick={() => handleSelect(scored)}
-                  className={`w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-xs transition-colors cursor-pointer select-none ${
-                    isSelected
-                      ? 'bg-black/[0.06] dark:bg-white/10 text-gray-900 dark:text-white'
-                      : 'text-gray-700 dark:text-gray-300 hover:bg-black/[0.03] dark:hover:bg-white/[0.05]'
-                  }`}
+                  className="w-full px-3 py-2.5 rounded-xl flex items-center justify-between text-xs cursor-pointer select-none transition-all"
+                  style={{
+                    background: isSelected ? 'rgba(255,255,255,0.1)' : 'transparent',
+                    border: isSelected ? '1px solid rgba(255,255,255,0.1)' : '1px solid transparent',
+                  }}
+                  onMouseLeave={(e) => {
+                    if (index !== selectedIndex) {
+                      e.currentTarget.style.background = 'transparent';
+                    }
+                  }}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
-                    {/* Item icon (monochrome gray / light shades) */}
-                    <div className="w-7 h-7 rounded-lg bg-black/[0.04] dark:bg-white/[0.06] text-gray-600 dark:text-gray-300 flex items-center justify-center shrink-0 border border-black/[0.03] dark:border-white/[0.05]">
+                    {/* Icon */}
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}
+                    >
                       {isSection ? (
-                        <Layers size={15} strokeWidth={2} />
+                        <Layers size={14} strokeWidth={2} className="text-white/50" />
                       ) : (
-                        <NotebookIcon size={15} strokeWidth={2} />
+                        <NotebookIcon size={14} strokeWidth={2} className="text-white/50" />
                       )}
                     </div>
 
-                    {/* Item Title & Breadcrumbs */}
+                    {/* Title & subtitle */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 truncate">
-                        <span className="font-medium text-[13px] truncate">
+                        <span className="font-medium text-[13px] text-white/85 truncate">
                           {renderTitle(item.title, scored.indices)}
                         </span>
-                        {item.isCurrentNotebookSection && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-black/[0.05] dark:bg-white/10 text-gray-600 dark:text-gray-300 border border-black/[0.04] dark:border-white/[0.06] shrink-0">
-                            Current Notebook
-                          </span>
-                        )}
                         {!isSection && item.isCurrentNotebook && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-black/[0.05] dark:bg-white/10 text-gray-600 dark:text-gray-300 border border-black/[0.04] dark:border-white/[0.06] shrink-0">
+                          <span
+                            className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium text-white/50"
+                            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.08)' }}
+                          >
                             Current
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                      <div className="text-[11px] text-white/30 truncate mt-0.5">
                         {isSection ? (
                           <span>In &ldquo;{item.notebookName}&rdquo;</span>
                         ) : (
-                          <span>
-                            {item.sectionCount}{' '}
-                            {item.sectionCount === 1 ? 'section' : 'sections'}
-                          </span>
+                          <span>{item.sectionCount} {item.sectionCount === 1 ? 'section' : 'sections'}</span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Right pill / action */}
+                  {/* Right side */}
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 dark:text-gray-500 px-1.5 py-0.5 rounded bg-black/[0.04] dark:bg-white/[0.06]">
+                    <span
+                      className="text-[10px] uppercase font-semibold tracking-wider text-white/25 px-1.5 py-0.5 rounded"
+                      style={{ background: 'rgba(255,255,255,0.05)' }}
+                    >
                       {isSection ? 'Section' : 'Notebook'}
                     </span>
                     {isSelected && (
-                      <span className="flex items-center gap-1 text-[11px] font-medium text-gray-500 dark:text-gray-400 pl-1">
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-white/40 pl-1">
                         <span>Open</span>
                         <CornerDownLeft size={11} strokeWidth={2.2} />
                       </span>
@@ -277,6 +293,27 @@ export const CommandPalette: FC<CommandPaletteProps> = ({ isOpen, onClose }) => 
                 </div>
               );
             })
+          )}
+        </div>
+
+        {/* Footer hint */}
+        <div
+          className="px-4 py-2.5 flex items-center gap-4"
+          style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+        >
+          <span className="text-[11px] text-white/20 flex items-center gap-1.5">
+            <kbd className="px-1 py-0.5 rounded text-[10px]" style={{ background: 'rgba(255,255,255,0.07)' }}>↑↓</kbd>
+            navigate
+          </span>
+          <span className="text-[11px] text-white/20 flex items-center gap-1.5">
+            <kbd className="px-1 py-0.5 rounded text-[10px]" style={{ background: 'rgba(255,255,255,0.07)' }}>↵</kbd>
+            open
+          </span>
+          {mode === 'sections' && !isNotebookSwitcher && (
+            <span className="text-[11px] text-white/20 flex items-center gap-1.5">
+              <kbd className="px-1 py-0.5 rounded text-[10px]" style={{ background: 'rgba(255,255,255,0.07)' }}>&gt;</kbd>
+              switch notebook
+            </span>
           )}
         </div>
       </div>
