@@ -62,13 +62,24 @@ export default function App() {
     return () => window.removeEventListener('inkwell-toast', onToast);
   }, []);
 
-  // Global shortcuts: Command + K (Search) and Ctrl + B (Sidebar)
+  // Global shortcuts: Command + K (Search), Ctrl + B (Sidebar), Cmd+← (Home)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K' || e.code === 'KeyK')) {
         e.preventDefault();
         setIsCommandPaletteOpen((prev) => !prev);
         return;
+      }
+
+      // Cmd+J → go back to start screen (skip only if editing a text element)
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J' || e.code === 'KeyJ')) {
+        const isEditing = !!useUiStore.getState().editingId;
+        if (!isEditing) {
+          e.preventDefault();
+          e.stopPropagation();
+          useNotesStore.getState().setActiveNotebook(null);
+          return;
+        }
       }
 
       const isB = e.key === 'b' || e.key === 'B' || e.code === 'KeyB';
