@@ -175,6 +175,12 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     };
     window.addEventListener('wheel', blockPageZoom, { passive: false, capture: true });
 
+    // zoomHotkeysEnabled (needed for touchpad pinch) also re-enables Ctrl +/-/0 page zoom
+    const blockZoomHotkeys = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && ['+', '=', '-', '_'].includes(e.key)) e.preventDefault();
+    };
+    window.addEventListener('keydown', blockZoomHotkeys, true);
+
     const onWheel = (e: WheelEvent) => {
       const target = e.target as HTMLElement | null;
       // Don't intercept scrolling inside sidebar
@@ -374,6 +380,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('wheel', blockPageZoom, { capture: true });
+      window.removeEventListener('keydown', blockZoomHotkeys, true);
       el.removeEventListener('wheel', onWheel);
       document.removeEventListener('gesturestart', onGestureStart);
       document.removeEventListener('gesturechange', onGestureChange);
@@ -720,6 +727,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         const coords = screenToCanvas(e.clientX, e.clientY, viewportRef.current, rect);
 
         isMarqueeDraggingRef.current = true;
+        lastPointerRef.current = { clientX: e.clientX, clientY: e.clientY };
         const initialBox = {
           startX: coords.x,
           startY: coords.y,
@@ -738,30 +746,23 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     [isSpacePressed, activeTool, commitArrow, clearSelection]
   );
 
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (activeTool === 'arrow' && arrowDraftRef.current) {
-        const container = containerRef.current;
-        if (!container) return;
-        const rect = container.getBoundingClientRect();
-        const coords = screenToCanvas(e.clientX, e.clientY, viewportRef.current, rect);
-        arrowDraftRef.current = {
-          ...arrowDraftRef.current,
-          currentX: coords.x,
-          currentY: coords.y,
-        };
-        setArrowDraft((prev) =>
-          prev ? { ...prev, currentX: coords.x, currentY: coords.y } : null
-        );
-        return;
-      }
+  const activeSectionRef = useRef(activeSection);
+  activeSectionRef.current = activeSection;
+  const setSelectedIdsRef = useRef(setSelectedIds);
+  setSelectedIdsRef.current = setSelectedIds;
+  const setViewportRef = useRef(setViewport);
+  setViewportRef.current = setViewport;
+  const lastPointerRef = useRef({ clientX: 0, clientY: 0 });
 
-      // Marquee drag selection move
-      if (isMarqueeDraggingRef.current && marqueeBoxRef.current) {
+  // Extend the marquee to the given screen point and recompute the selection
+  const updateMarquee = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!isMarqueeDraggingRef.current || !marqueeBoxRef.current) return;
+      {
         const container = containerRef.current;
         if (!container) return;
         const rect = container.getBoundingClientRect();
-        const coords = screenToCanvas(e.clientX, e.clientY, viewportRef.current, rect);
+        const coords = screenToCanvas(clientX, clientY, viewportRef.current, rect);
 
         const updatedBox = {
           ...marqueeBoxRef.current,
@@ -782,9 +783,9 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
           updatedBox.currentY - updatedBox.startY
         );
 
-        if (dragDist > 3 && activeSection) {
+        if (dragDist > 3 && activeSectionRef.current) {
           const matchedIds: string[] = [];
-          for (const el of activeSection.elements) {
+          for (const el of activeSectionRef.current.elements) {
             let elMinX = el.x;
             let elMaxX = el.x + (('width' in el && typeof el.width === 'number') ? el.width : 200);
             let elMinY = el.y;
@@ -815,8 +816,67 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
             }
           }
 
-          setSelectedIds(matchedIds);
+          setSelectedIdsRef.current(matchedIds);
         }
+      }
+    },
+    []
+  );
+
+  // Edge auto-scroll while drag-selecting: pan the canvas when the pointer nears/leaves the edge
+  const isMarqueeActive = marqueeBox !== null;
+  useEffect(() => {
+    if (!isMarqueeActive) return;
+    const EDGE = 48;
+    const MAX_SPEED = 18; // screen px per frame
+    let raf = 0;
+    const tick = () => {
+      const container = containerRef.current;
+      if (container && isMarqueeDraggingRef.current) {
+        const rect = container.getBoundingClientRect();
+        const { clientX, clientY } = lastPointerRef.current;
+        const push = (pos: number, min: number, max: number) => {
+          if (pos < min + EDGE) return Math.min(1, (min + EDGE - pos) / EDGE);
+          if (pos > max - EDGE) return -Math.min(1, (pos - (max - EDGE)) / EDGE);
+          return 0;
+        };
+        const dx = push(clientX, rect.left, rect.right) * MAX_SPEED;
+        const dy = push(clientY, rect.top, rect.bottom) * MAX_SPEED;
+        if (dx !== 0 || dy !== 0) {
+          const vp = viewportRef.current;
+          viewportRef.current = { ...vp, x: vp.x + dx, y: vp.y + dy };
+          setViewportRef.current({ x: vp.x + dx, y: vp.y + dy });
+          updateMarquee(clientX, clientY);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [isMarqueeActive, updateMarquee]);
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (activeTool === 'arrow' && arrowDraftRef.current) {
+        const container = containerRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const coords = screenToCanvas(e.clientX, e.clientY, viewportRef.current, rect);
+        arrowDraftRef.current = {
+          ...arrowDraftRef.current,
+          currentX: coords.x,
+          currentY: coords.y,
+        };
+        setArrowDraft((prev) =>
+          prev ? { ...prev, currentX: coords.x, currentY: coords.y } : null
+        );
+        return;
+      }
+
+      // Marquee drag selection move
+      if (isMarqueeDraggingRef.current && marqueeBoxRef.current) {
+        lastPointerRef.current = { clientX: e.clientX, clientY: e.clientY };
+        updateMarquee(e.clientX, e.clientY);
         return;
       }
 
@@ -828,7 +888,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
         y: panStartRef.current.startY + dy,
       });
     },
-    [activeTool, isPanning, setViewport, activeSection, setSelectedIds]
+    [activeTool, isPanning, setViewport, updateMarquee]
   );
 
   const handlePointerUp = useCallback(

@@ -1,3 +1,4 @@
+import { modKey } from '../../utils/platform';
 import {
   type FC,
   useState,
@@ -83,9 +84,12 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
     (el) => el.id === selectedId && el.type === 'text'
   ) as TextElement | undefined;
 
-  const [defaultFontFamily, setDefaultFontFamily] = useState('Comic Sans MS, Comic Neue, cursive, sans-serif');
-  const [defaultFontSize, setDefaultFontSize] = useState(18);
-  const [defaultColor, setDefaultColor] = useState<string>('');
+  const defaultFontFamily = useUiStore((state) => state.defaultFontFamily);
+  const setDefaultFontFamily = useUiStore((state) => state.setDefaultFontFamily);
+  const defaultFontSize = useUiStore((state) => state.defaultFontSize);
+  const setDefaultFontSize = useUiStore((state) => state.setDefaultFontSize);
+  const defaultColor = useUiStore((state) => state.defaultColor);
+  const setDefaultColor = useUiStore((state) => state.setDefaultColor);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -481,7 +485,7 @@ export const FloatingToolbar: FC<FloatingToolbarProps> = ({
                 <RotateCcw size={14} className="text-gray-500 dark:text-gray-400" />
                 <span>Reset View</span>
               </div>
-              <span className="text-[10px] text-gray-400 font-mono">⌘0</span>
+              <span className="text-[10px] text-gray-400 font-mono">{modKey}0</span>
             </button>
             <div className="border-t border-black/[0.06] dark:border-white/[0.08] my-1" />
             <button
