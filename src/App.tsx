@@ -10,6 +10,7 @@ import { Canvas } from './components/Canvas/Canvas';
 import { FloatingToolbar } from './components/Layout/FloatingToolbar';
 import { CanvasElements } from './components/Canvas/CanvasElements';
 import { processPdfFile } from './utils/pdfProcessor';
+import { processPptFile } from './utils/pptProcessor';
 import { exportSectionToPdf } from './utils/exportPdf';
 import { CanvasElement, ImageElement, TextElement } from './types';
 import { CommandPalette } from './components/CommandPalette/CommandPalette';
@@ -40,6 +41,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  const pptInputRef = useRef<HTMLInputElement>(null);
 
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showToast = useCallback((msg: string) => {
@@ -195,6 +197,49 @@ export default function App() {
     if (imageInputRef.current) {
       imageInputRef.current.value = '';
       imageInputRef.current.click();
+    }
+  };
+
+  // Trigger PowerPoint file picker
+  const handleAddPptClick = () => {
+    if (pptInputRef.current) {
+      pptInputRef.current.value = '';
+      pptInputRef.current.click();
+    }
+  };
+
+  // Process chosen .pptx file — mirrors handlePdfFileChange
+  const handlePptFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeSection) return;
+
+    setIsImporting(true);
+    setImportProgress({ done: 0, total: 1 });
+
+    try {
+      const container = document.getElementById('infinite-canvas-container');
+      const rect = container?.getBoundingClientRect() ?? {
+        width: window.innerWidth - 280,
+        height: window.innerHeight,
+      };
+
+      const slides = await processPptFile(
+        file,
+        activeSection.viewport,
+        { width: rect.width, height: rect.height },
+        (done, total) => {
+          setImportProgress({ done, total });
+        }
+      );
+
+      addElements(slides);
+      showToast(`Imported ${slides.length} slide${slides.length !== 1 ? 's' : ''} from ${file.name}`);
+    } catch (err) {
+      console.error('Failed to import PPT:', err);
+      showToast('Could not convert presentation. PowerPoint or LibreOffice must be installed.');
+    } finally {
+      setIsImporting(false);
+      setImportProgress(null);
     }
   };
 
@@ -568,6 +613,15 @@ export default function App() {
             className="hidden"
           />
 
+          {/* Hidden PowerPoint input (.pptx) */}
+          <input
+            ref={pptInputRef}
+            type="file"
+            accept=".ppt,.pptx,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            onChange={handlePptFileChange}
+            className="hidden"
+          />
+
           {/* Sidebar */}
           <Sidebar
             onNewNotebookClick={() => setIsCreateModalOpen(true)}
@@ -580,6 +634,7 @@ export default function App() {
             <FloatingToolbar
               onAddPdfClick={handleAddPdfClick}
               onAddImageClick={handleAddImageClick}
+              onAddPptClick={handleAddPptClick}
               onExportPdfClick={handleExportPdfClick}
             />
 
@@ -588,7 +643,7 @@ export default function App() {
               <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full bg-gray-900/90 dark:bg-[#1E1E1E]/95 text-white dark:text-gray-100 text-xs font-medium backdrop-blur-xl shadow-2xl border border-white/10 pointer-events-none flex items-center gap-3 animate-slide-down">
                 <span className="w-2 h-2 rounded-full bg-white animate-ping shrink-0" />
                 <span>
-                  Importing page {importProgress.done} of {importProgress.total}…
+                  Importing {importProgress.done} of {importProgress.total}…
                 </span>
               </div>
             )}

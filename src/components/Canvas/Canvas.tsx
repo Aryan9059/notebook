@@ -156,6 +156,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
   );
 
   // Non-passive wheel & native WebKit gesture handler for trackpad pinch zoom & pan
+  // Also handles Windows touch-pointer pinch via PointerEvent tracking
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -165,24 +166,39 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     };
     window.addEventListener('mousemove', onMouseMove, { passive: true });
 
+    let lastGestureTs = 0;
+
+    // Ctrl+wheel (= trackpad pinch on Windows) anywhere in the window must never
+    // reach WebView2's built-in page zoom, even over toolbars/overlays outside the canvas.
+    const blockPageZoom = (e: WheelEvent) => {
+      if (e.ctrlKey) e.preventDefault();
+    };
+    window.addEventListener('wheel', blockPageZoom, { passive: false, capture: true });
+
     const onWheel = (e: WheelEvent) => {
       const target = e.target as HTMLElement | null;
       // Don't intercept scrolling inside sidebar
       if (target?.closest('#sidebar-container')) return;
 
       e.preventDefault();
-      // If WebKit GestureEvent is actively controlling pinch zoom, avoid clashing
-      if (isGesturingRef.current) return;
+      // If touch-pointer pinch gesture is actively controlling zoom, avoid clashing
+      // (time-boxed: a missed pointerup must not leave wheel pinch-zoom disabled forever)
+      if (isGesturingRef.current && performance.now() - lastGestureTs < 150) return;
 
       const rect = el.getBoundingClientRect();
       const current = viewportRef.current;
       mousePosRef.current = { clientX: e.clientX, clientY: e.clientY };
 
       if (e.ctrlKey || e.metaKey) {
-        // Trackpad pinch (Blink/Gecko) or Ctrl/Cmd + wheel zoom anchored to cursor
+        // Pinch-to-zoom from trackpad (Blink/Gecko on Windows sends ctrlKey=true with large deltaY)
+        // or Ctrl/Cmd + wheel zoom anchored to cursor.
+        // Windows WebView2 sends much larger deltaY values (~100) vs macOS (~3-5),
+        // so we normalise: if |deltaY| > 10 it's a Windows-style discrete delta → scale it down.
+        const rawDelta = e.deltaY;
+        const scaledDelta = Math.abs(rawDelta) > 10 ? rawDelta * 0.1 : rawDelta;
         const px = e.clientX - rect.left;
         const py = e.clientY - rect.top;
-        const next = calculateCursorZoom(px, py, e.deltaY, current);
+        const next = calculateCursorZoom(px, py, scaledDelta, current);
         setViewport(next);
       } else {
         // Trackpad 2-finger scroll pan
@@ -236,6 +252,7 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
       e.preventDefault();
       if (wasPrevented) return;
 
+      lastGestureTs = performance.now();
       const ge = e as unknown as { scale: number };
       if (typeof ge.scale !== 'number' || isNaN(ge.scale) || ge.scale <= 0) return;
 
@@ -255,6 +272,88 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
       }, 60);
     };
 
+    // ── Windows touch-pointer pinch-to-zoom ──────────────────────────────────
+    // On Windows, touch screens and some touchpads fire PointerEvents with
+    // pointerType 'touch' instead of (or in addition to) wheel events with
+    // ctrlKey. We track two active touch pointers and compute the pinch scale.
+    const touchPointers = new Map<number, { x: number; y: number }>();
+    let lastPinchDist = 0;
+    let lastPinchMidX = 0;
+    let lastPinchMidY = 0;
+
+    const onPointerDownTouch = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('#sidebar-container')) return;
+      touchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (touchPointers.size === 2) {
+        // Two fingers down — start pinch
+        isGesturingRef.current = true;
+        const pts = Array.from(touchPointers.values());
+        lastPinchDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        lastPinchMidX = (pts[0].x + pts[1].x) / 2;
+        lastPinchMidY = (pts[0].y + pts[1].y) / 2;
+      }
+    };
+
+    const onPointerMoveTouch = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      if (!touchPointers.has(e.pointerId)) return;
+
+      touchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (touchPointers.size === 2) {
+        e.preventDefault();
+        lastGestureTs = performance.now();
+        const pts = Array.from(touchPointers.values());
+        const newDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        const newMidX = (pts[0].x + pts[1].x) / 2;
+        const newMidY = (pts[0].y + pts[1].y) / 2;
+
+        if (lastPinchDist > 0) {
+          const rect = el.getBoundingClientRect();
+          const current = viewportRef.current;
+
+          // Scale factor from finger spread delta
+          const scaleFactor = newDist / lastPinchDist;
+          const nextZoom = clamp(current.zoom * scaleFactor, MIN_ZOOM, MAX_ZOOM);
+          const k = nextZoom / current.zoom;
+
+          // Anchor zoom to midpoint between fingers
+          const anchorX = newMidX - rect.left;
+          const anchorY = newMidY - rect.top;
+
+          // Also apply pan from midpoint movement
+          const panDx = newMidX - lastPinchMidX;
+          const panDy = newMidY - lastPinchMidY;
+
+          setViewport({
+            x: anchorX - k * (anchorX - current.x) + panDx,
+            y: anchorY - k * (anchorY - current.y) + panDy,
+            zoom: nextZoom,
+          });
+        }
+
+        lastPinchDist = newDist;
+        lastPinchMidX = newMidX;
+        lastPinchMidY = newMidY;
+      }
+    };
+
+    const onPointerUpTouch = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      touchPointers.delete(e.pointerId);
+      if (touchPointers.size < 2) {
+        lastPinchDist = 0;
+        if (touchPointers.size === 0) {
+          setTimeout(() => {
+            isGesturingRef.current = false;
+          }, 60);
+        }
+      }
+    };
+
     // Attach wheel listener to el
     el.addEventListener('wheel', onWheel, { passive: false });
 
@@ -266,8 +365,15 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
     window.addEventListener('gesturechange', onGestureChange, { passive: false });
     window.addEventListener('gestureend', onGestureEnd, { passive: false });
 
+    // Attach Windows touch-pointer pinch listeners
+    el.addEventListener('pointerdown', onPointerDownTouch, { passive: true });
+    el.addEventListener('pointermove', onPointerMoveTouch, { passive: false });
+    el.addEventListener('pointerup', onPointerUpTouch, { passive: true });
+    el.addEventListener('pointercancel', onPointerUpTouch, { passive: true });
+
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('wheel', blockPageZoom, { capture: true });
       el.removeEventListener('wheel', onWheel);
       document.removeEventListener('gesturestart', onGestureStart);
       document.removeEventListener('gesturechange', onGestureChange);
@@ -275,6 +381,10 @@ export const Canvas: FC<CanvasProps> = ({ children, onDoubleClickCanvas }) => {
       window.removeEventListener('gesturestart', onGestureStart);
       window.removeEventListener('gesturechange', onGestureChange);
       window.removeEventListener('gestureend', onGestureEnd);
+      el.removeEventListener('pointerdown', onPointerDownTouch);
+      el.removeEventListener('pointermove', onPointerMoveTouch);
+      el.removeEventListener('pointerup', onPointerUpTouch);
+      el.removeEventListener('pointercancel', onPointerUpTouch);
     };
   }, [setViewport]);
 
